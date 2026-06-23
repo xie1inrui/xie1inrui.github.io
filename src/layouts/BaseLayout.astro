@@ -1,0 +1,36 @@
+---
+import '../styles/global.css';
+import MobileHeader from '@/components/MobileHeader.astro';
+import SiteSidebar from '@/components/SiteSidebar.astro';
+import RightRail from '@/components/RightRail.astro';
+import Footer from '@/components/Footer.astro';
+import { site } from '@/data/site';
+
+interface Props { title?: string; description?: string }
+const { title = site.title, description = site.description } = Astro.props;
+const pageTitle = title === site.title ? title : `${title} · ${site.title}`;
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <title>{pageTitle}</title>
+    <script is:inline>
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+    </script>
+  </head>
+  <body>
+    <MobileHeader />
+    <div class="kb-shell">
+      <SiteSidebar />
+      <main class="kb-main">
+        <slot />
+        <Footer />
+      </main>
+      <RightRail />
+    </div>
+  </body>
+</html>

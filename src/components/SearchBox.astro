@@ -1,0 +1,23 @@
+<div class="rounded-lg border border-[var(--line)] bg-[var(--panel)]/45 p-4">
+  <label for="search-input" class="text-sm font-bold">搜索知识库</label>
+  <input id="search-input" type="search" placeholder="inference / training / infra ..." class="mt-3 w-full rounded-md border border-[var(--line)] bg-transparent px-3 py-2 text-sm outline-none transition focus:border-[var(--accent)]" />
+  <div id="search-results" class="mt-4 space-y-1"></div>
+</div>
+<script>
+type SearchItem = { title: string; summary: string; category: string; collection: string; tags: string[]; url: string };
+const input = document.querySelector<HTMLInputElement>('#search-input');
+const results = document.querySelector<HTMLElement>('#search-results');
+const withBase = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\//, '')}`;
+const render = (items: SearchItem[]) => {
+  if (!results) return;
+  results.innerHTML = items.map((item) => `<a class="block border-b border-[var(--line)] py-3 last:border-0" href="${withBase(item.url)}"><div class="text-xs text-[var(--muted)]">${item.collection} · ${item.category}</div><div class="mt-1 font-bold text-[var(--accent)]">${item.title}</div><p class="mt-1 text-sm text-[var(--muted)]">${item.summary}</p></a>`).join('') || '<p class="text-sm text-[var(--muted)]">没有匹配结果。</p>';
+};
+let index: SearchItem[] = [];
+fetch(withBase('/search-index.json')).then((r) => r.json()).then((data: SearchItem[]) => { index = data; render(index.slice(0, 8)); });
+input?.addEventListener('input', () => {
+  const query = input.value.trim().toLowerCase();
+  if (!query) return render(index.slice(0, 8));
+  const tokens = query.split(/\s+/);
+  render(index.filter((item) => tokens.every((token) => [item.title, item.summary, item.category, item.collection, ...item.tags].join(' ').toLowerCase().includes(token))).slice(0, 20));
+});
+</script>

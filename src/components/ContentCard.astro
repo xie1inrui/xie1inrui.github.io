@@ -1,0 +1,22 @@
+---
+import TagList from './TagList.astro';
+import { collectionMeta, entryUrl, normalizeSlug, formatDate, type KnowledgeEntry } from '@/utils/content';
+interface Props { entry: KnowledgeEntry }
+const { entry } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const url = (href: string) => `${base}${href.replace(/^\//, '')}`;
+---
+<article class="group border-b border-[var(--line)] py-5 first:pt-0">
+  <div class="mb-1 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
+    <a href={url(collectionMeta[entry.collection].href)} class="hover:text-[var(--accent)]">{collectionMeta[entry.collection].label}</a>
+    <span>·</span>
+    <a href={url(`/categories/${normalizeSlug(entry.data.category)}/`)} class="hover:text-[var(--accent)]">{entry.data.category}</a>
+    <span>·</span>
+    <time datetime={entry.data.date.toISOString()}>{formatDate(entry.data.date)}</time>
+  </div>
+  <h2 class="text-xl font-bold leading-snug tracking-[-0.035em] text-[var(--accent)] transition group-hover:text-[var(--fg)]">
+    <a href={url(entryUrl(entry))}>{entry.data.title}</a>
+  </h2>
+  <p class="mt-2 text-sm leading-6 text-[var(--muted)]">{entry.data.summary}</p>
+  <div class="mt-3"><TagList tags={entry.data.tags} /></div>
+</article>

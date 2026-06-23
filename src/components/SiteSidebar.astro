@@ -1,0 +1,43 @@
+---
+import { site } from '@/data/site';
+const current = Astro.url.pathname;
+const base = import.meta.env.BASE_URL;
+const url = (href: string) => `${base}${href.replace(/^\//, '')}`;
+---
+<aside class="kb-sidebar" aria-label="主导航">
+  <div class="mb-9">
+    <a href={url('/')} class="block text-3xl font-bold tracking-[-0.06em] text-[var(--accent)]">{site.shortTitle}</a>
+    <p class="mt-3 max-w-[13rem] text-sm leading-6 text-[var(--muted)]">{site.description}</p>
+  </div>
+
+  <a href={url('/search/')} class="mb-7 flex items-center gap-2 rounded-md border border-[var(--line)] px-3 py-2 text-sm text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--fg)]">
+    <span class="text-lg">⌕</span><span>搜索</span>
+  </a>
+
+  <div class="mb-7 flex items-center gap-2">
+    <button id="theme-toggle" class="rounded-md border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--muted)] hover:text-[var(--fg)]" aria-label="切换暗色模式">◐</button>
+    <span class="text-xs text-[var(--muted)]">Dark / Light</span>
+  </div>
+
+  <p class="mb-3 text-sm font-semibold">探索</p>
+  <nav class="space-y-1">
+    {site.nav.map((item) => {
+      const active = current === item.href || (item.href !== '/' && current.startsWith(item.href));
+      return <a href={url(item.href)} class:list={["flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition hover:bg-[var(--tag)] hover:text-[var(--fg)]", active ? "text-[var(--fg)] font-semibold bg-[var(--tag)]" : "text-[var(--muted)]"]}><span class="w-5 text-center text-[var(--accent)]">{item.icon}</span>{item.label}</a>;
+    })}
+  </nav>
+
+  <div class="mt-9 border-t border-[var(--line)] pt-5">
+    <p class="mb-3 text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Research</p>
+    <div class="flex flex-wrap gap-2">
+      {site.researchDirections.map((item) => <span class="rounded-md bg-[var(--tag)] px-2 py-1 text-xs text-[var(--muted)]">{item}</span>)}
+    </div>
+  </div>
+</aside>
+<script>
+const buttons = document.querySelectorAll<HTMLButtonElement>('#theme-toggle, #mobile-theme-toggle');
+for (const button of buttons) button.addEventListener('click', () => {
+  const isDark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+});
+</script>

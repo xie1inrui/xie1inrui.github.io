@@ -1,0 +1,10 @@
+---
+import { normalizeSlug } from '@/utils/content';
+interface Props { tags: string[] }
+const { tags } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const url = (href: string) => `${base}${href.replace(/^\//, '')}`;
+---
+<div class="flex flex-wrap gap-2">
+  {tags.map((tag) => <a href={url(`/tags/${normalizeSlug(tag)}/`)} class="rounded-md bg-[var(--tag)] px-2 py-1 text-xs font-medium text-[var(--muted)] transition hover:text-[var(--fg)]">#{tag}</a>)}
+</div>

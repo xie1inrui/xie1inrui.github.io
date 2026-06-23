@@ -1,0 +1,8 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { getAllEntries, getAllTags, normalizeSlug } from '@/utils/content';
+const tags = getAllTags(await getAllEntries());
+const base = import.meta.env.BASE_URL;
+const url = (href: string) => `${base}${href.replace(/^\//, '')}`;
+---
+<BaseLayout title="标签" description="知识库标签索引"><h1 class="mb-8 text-4xl font-black tracking-[-0.07em]">标签</h1><div class="flex flex-wrap gap-3">{tags.map(([tag,count])=><a class="rounded-md bg-[var(--tag)] px-3 py-2 text-sm text-[var(--muted)] transition hover:text-[var(--fg)]" href={url(`/tags/${normalizeSlug(tag)}/`)}>#{tag} <span>{count}</span></a>)}</div></BaseLayout>

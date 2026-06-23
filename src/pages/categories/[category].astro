@@ -1,0 +1,9 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import ContentCard from '@/components/ContentCard.astro';
+import { getAllEntries, getAllCategories, normalizeSlug } from '@/utils/content';
+export async function getStaticPaths() { const entries = await getAllEntries(); return getAllCategories(entries).map(([category])=>({ params: { category: normalizeSlug(category) }, props: { category } })); }
+const { category } = Astro.props;
+const entries = (await getAllEntries()).filter((entry)=>entry.data.category===category);
+---
+<BaseLayout title={`分类：${category}`} description={`分类 ${category} 下的知识条目`}><h1 class="mb-8 text-4xl font-black tracking-[-0.07em]">{category}</h1><div>{entries.map((entry)=><ContentCard entry={entry}/>)}</div></BaseLayout>

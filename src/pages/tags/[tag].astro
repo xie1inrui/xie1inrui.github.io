@@ -1,0 +1,9 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import ContentCard from '@/components/ContentCard.astro';
+import { getAllEntries, getAllTags, normalizeSlug } from '@/utils/content';
+export async function getStaticPaths() { const entries = await getAllEntries(); return getAllTags(entries).map(([tag])=>({ params: { tag: normalizeSlug(tag) }, props: { tag } })); }
+const { tag } = Astro.props;
+const entries = (await getAllEntries()).filter((entry)=>entry.data.tags.includes(tag));
+---
+<BaseLayout title={`标签：${tag}`} description={`标签 ${tag} 下的知识条目`}><h1 class="mb-8 text-4xl font-black tracking-[-0.07em]">#{tag}</h1><div>{entries.map((entry)=><ContentCard entry={entry}/>)}</div></BaseLayout>

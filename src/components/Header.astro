@@ -1,0 +1,6 @@
+---
+import ThemeToggle from './ThemeToggle.astro';
+import { site } from '@/data/site';
+const current = Astro.url.pathname;
+---
+<header class="sticky top-0 z-40 border-b border-[var(--line)] bg-[var(--bg)]/80 backdrop-blur-xl"><nav class="mx-auto flex max-w-5xl flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8"><a href="/" class="font-mono text-sm font-semibold tracking-tight">{site.author}.kb</a><div class="flex flex-wrap items-center gap-3 text-sm text-zinc-600 dark:text-zinc-300">{site.nav.map((item)=><a href={item.href} class:list={["hover:text-zinc-950 dark:hover:text-white", current===item.href&&"text-zinc-950 dark:text-white font-medium"]}>{item.label}</a>)}<a href="/search/" class="hover:text-zinc-950 dark:hover:text-white">搜索</a><ThemeToggle/></div></nav></header>

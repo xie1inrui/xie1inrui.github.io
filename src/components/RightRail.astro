@@ -1,0 +1,34 @@
+---
+import KnowledgeGraph from './KnowledgeGraph.astro';
+import { getAllEntries, getAllTags, normalizeSlug } from '@/utils/content';
+const tags = getAllTags(await getAllEntries()).slice(0, 14);
+const base = import.meta.env.BASE_URL;
+const url = (href: string) => `${base}${href.replace(/^\//, '')}`;
+---
+<aside class="kb-right" aria-label="页面辅助信息">
+  <section class="mb-8">
+    <div class="mb-3 flex items-center justify-between gap-3">
+      <h2 class="text-base font-bold tracking-tight">知识图谱</h2>
+      <a href={url('/graph/')} class="text-xs text-[var(--muted)] hover:text-[var(--accent)]">打开完整图谱 →</a>
+    </div>
+    <KnowledgeGraph variant="rail" limit={18} />
+  </section>
+
+  <section class="mb-8">
+    <h2 class="mb-3 text-base font-bold tracking-tight">目录</h2>
+    <nav class="space-y-2 text-sm text-[var(--muted)]">
+      <a class="block hover:text-[var(--accent)]" href={url('/')}>首页</a>
+      <a class="block hover:text-[var(--accent)]" href={url('/papers/')}>论文阅读</a>
+      <a class="block hover:text-[var(--accent)]" href={url('/notes/')}>技术笔记</a>
+      <a class="block hover:text-[var(--accent)]" href={url('/projects/')}>项目归档</a>
+      <a class="block hover:text-[var(--accent)]" href={url('/notes/site-maintenance-guide/')}>维护指南</a>
+    </nav>
+  </section>
+
+  <section>
+    <h2 class="mb-3 text-base font-bold tracking-tight">热门标签</h2>
+    <div class="flex flex-wrap gap-2">
+      {tags.map(([tag, count]) => <a href={url(`/tags/${normalizeSlug(tag)}/`)} class="rounded-md bg-[var(--tag)] px-2 py-1 text-xs text-[var(--muted)] transition hover:text-[var(--fg)]">#{tag} {count}</a>)}
+    </div>
+  </section>
+</aside>
