@@ -4,11 +4,11 @@ import ContentCard from '@/components/ContentCard.astro';
 import { getCollection } from 'astro:content';
 const papers = (await getCollection('papers')).sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
 ---
-<BaseLayout title="Research" description="Research and paper reading notes">
+<BaseLayout title="Research" description="Research interests and paper reading notes">
   <header class="mb-8">
-    <p class="mb-3 text-sm text-[var(--muted)]">Legacy route</p>
+    <p class="mb-3 text-sm text-[var(--muted)]">Research</p>
     <h1 class="text-4xl font-black tracking-[-0.07em] sm:text-5xl">Research</h1>
-    <p class="mt-4 leading-8 text-[var(--muted)]">This page is kept for compatibility. New research notes are organized under <a class="text-[var(--accent)]" href="/research/">/research/</a>.</p>
+    <p class="mt-4 leading-8 text-[var(--muted)]">Research notes and paper readings around AI systems, LLM inference, distributed training, and AI infrastructure.</p>
   </header>
   <div>{papers.map((entry) => <ContentCard entry={entry} />)}</div>
 </BaseLayout>

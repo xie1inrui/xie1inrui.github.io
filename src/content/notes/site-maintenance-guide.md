@@ -1,8 +1,13 @@
 ---
 title: "个人知识网站长期维护指南"
 date: 2026-06-22
+type: "note"
+section: "Notes"
 category: "Knowledge Management"
 tags: ["Astro", "Markdown", "GitHub Pages", "Knowledge Management"]
+concepts: ["Local Preview", "Git Workflow", "GitHub Actions", "Content Maintenance"]
+parents: ["Tools", "Knowledge Management"]
+projects: ["Personal Knowledge Website"]
 summary: "记录如何在 macOS 中找到项目、本地预览、新增内容、修改页面并维护到 GitHub Pages。"
 status: "stable"
 ---

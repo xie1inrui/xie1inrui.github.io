@@ -1,15 +1,20 @@
 ---
-title: ""
+title: "论文标题"
 date: YYYY-MM-DD
+type: "paper"
+section: "Research"
 category: "LLM Inference"
-tags: ["AI System"]
-summary: ""
+tags: ["LLM Inference"]
+concepts: []
+parents: ["Paper Reading"]
+projects: []
+summary: "一句话总结这篇论文的核心问题、方法或启发。"
 status: "reading"
 authors: []
 venue: ""
 year: 2026
-paperUrl: ""
-codeUrl: ""
+paperUrl: "https://example.com"
+codeUrl: "https://example.com"
 ---
 
 ## 论文信息

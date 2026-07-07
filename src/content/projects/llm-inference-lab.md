@@ -1,8 +1,13 @@
 ---
 title: "LLM Inference Lab"
 date: 2026-06-22
+type: "project"
+section: "Projects"
 category: "LLM Inference"
 tags: ["LLM Inference", "Benchmark", "AI infra"]
+concepts: ["KV Cache", "Benchmarking", "Prefill", "Decode", "Serving Runtime"]
+parents: ["AI Systems Project", "LLM Inference"]
+papers: ["vllm-pagedattention"]
 summary: "一个用于记录 LLM 推理系统实验、profiling 方法和 serving 优化结论的项目归档示例。"
 status: "active"
 repoUrl: "https://github.com/xielinrui/llm-inference-lab"

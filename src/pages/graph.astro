@@ -2,4 +2,19 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import KnowledgeGraph from '@/components/KnowledgeGraph.astro';
 ---
-<BaseLayout title="知识图谱" description="基于标签关联的知识图谱"><header class="mb-8"><h1 class="text-4xl font-semibold tracking-[-0.05em]">知识图谱</h1><p class="mt-3 text-zinc-500">用标签把论文、技术笔记和项目经验连接起来。</p></header><KnowledgeGraph/></BaseLayout>
+<BaseLayout title="Knowledge Graph" description="Explore sections, categories, content, concepts, tags, and project relations.">
+  <header class="mb-8">
+    <p class="mb-3 text-sm text-[var(--muted)]">Knowledge Graph</p>
+    <h1 class="text-4xl font-black tracking-[-0.07em] sm:text-5xl">Knowledge Graph</h1>
+    <p class="mt-4 leading-8 text-[var(--muted)]">This graph connects high-level sections, categories, concrete pages, technical concepts, tags, and project branches. Large nodes are sections or categories; smaller nodes are articles, notes, projects, tags, and concepts.</p>
+    <div class="mt-4 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
+      <span class="rounded-md bg-[var(--tag)] px-2 py-1">section</span>
+      <span class="rounded-md bg-[var(--tag)] px-2 py-1">category</span>
+      <span class="rounded-md bg-[var(--tag)] px-2 py-1">content</span>
+      <span class="rounded-md bg-[var(--tag)] px-2 py-1">concept</span>
+      <span class="rounded-md bg-[var(--tag)] px-2 py-1">project</span>
+      <span class="rounded-md bg-[var(--tag)] px-2 py-1">tag</span>
+    </div>
+  </header>
+  <KnowledgeGraph />
+</BaseLayout>

@@ -11,7 +11,7 @@ concurrency:
   group: pages
   cancel-in-progress: false
 env:
-  SITE_URL: https://xielinrui.github.io
+  SITE_URL: https://xie1inrui.github.io
 jobs:
   build:
     runs-on: ubuntu-latest

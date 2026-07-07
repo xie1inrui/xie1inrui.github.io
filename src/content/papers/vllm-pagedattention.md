@@ -1,8 +1,13 @@
 ---
 title: "vLLM: PagedAttention 论文阅读"
 date: 2026-06-22
+type: "paper"
+section: "Research"
 category: "LLM Inference"
 tags: ["LLM Inference", "Serving", "PagedAttention", "AI System"]
+concepts: ["KV Cache", "PagedAttention", "Continuous Batching", "Memory Fragmentation", "Prefix Caching"]
+parents: ["Paper Reading", "LLM Inference"]
+projects: ["LLM Inference Lab"]
 summary: "从 KV Cache 管理角度理解 vLLM 的 PagedAttention 如何提升吞吐和显存利用率。"
 status: "reading"
 authors: ["Woosuk Kwon", "Zhuohan Li", "Siyuan Zhuang"]

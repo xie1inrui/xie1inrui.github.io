@@ -1,5 +1,5 @@
 ---
-import { getAllEntries, getAllTags, entryUrl, normalizeSlug } from '@/utils/content';
+import { buildKnowledgeGraph, getAllEntries } from '@/utils/content';
 
 interface Props {
   variant?: 'rail' | 'full';
@@ -8,29 +8,7 @@ interface Props {
 
 const { variant = 'full', limit } = Astro.props;
 const allEntries = await getAllEntries();
-const entries = typeof limit === 'number' ? allEntries.slice(0, limit) : allEntries;
-const tags = getAllTags(entries);
-const nodes = [
-  ...entries.map((entry) => ({
-    id: `${entry.collection}:${entry.slug}`,
-    label: entry.data.title,
-    type: entry.collection,
-    url: entryUrl(entry),
-    summary: entry.data.summary,
-    tags: entry.data.tags,
-  })),
-  ...tags.map(([tag, count]) => ({
-    id: `tag:${tag}`,
-    label: tag,
-    type: 'tag',
-    url: `/tags/${normalizeSlug(tag)}/`,
-    summary: `${count} 篇内容使用该标签`,
-    tags: [] as string[],
-  })),
-];
-const links = entries.flatMap((entry) =>
-  entry.data.tags.map((tag) => ({ source: `${entry.collection}:${entry.slug}`, target: `tag:${tag}` }))
-);
+const { nodes, links } = buildKnowledgeGraph(allEntries, limit);
 const graphData = JSON.stringify({ nodes, links });
 const isRail = variant === 'rail';
 ---
@@ -57,7 +35,7 @@ import { drag, forceCenter, forceCollide, forceLink, forceManyBody, forceSimulat
 type GraphNode = {
   id: string;
   label: string;
-  type: 'papers' | 'notes' | 'projects' | 'tag' | string;
+  type: 'section' | 'category' | 'content' | 'concept' | 'tag' | 'project' | string;
   url: string;
   summary: string;
   tags: string[];
@@ -69,15 +47,21 @@ type GraphNode = {
   fy?: number | null;
 };
 
-type GraphLink = { source: string | GraphNode; target: string | GraphNode };
+type GraphLink = { source: string | GraphNode; target: string | GraphNode; type?: string };
 
 type GraphPayload = { nodes: GraphNode[]; links: GraphLink[] };
 
 const baseUrl = import.meta.env.BASE_URL;
 const withBase = (path: string) => `${baseUrl}${path.replace(/^\//, '')}`;
-const color = (type: string) => ({ papers: '#8fb2c7', notes: '#93c59b', projects: '#c1a1dd', tag: '#d0aa74' }[type] || '#9b9a93');
-const radius = (node: GraphNode, compact: boolean) => node.type === 'tag' ? (compact ? 4.5 : 7) : (compact ? 6 : 10);
-const labelVisible = (node: GraphNode, compact: boolean) => !compact && node.type !== 'tag';
+const color = (type: string) => ({ section: '#9fd3c7', category: '#8fb2c7', content: '#d7d1c7', concept: '#d0aa74', tag: '#7d8790', project: '#c1a1dd' }[type] || '#9b9a93');
+const radius = (node: GraphNode, compact: boolean) => {
+  if (node.type === 'section') return compact ? 10 : 18;
+  if (node.type === 'category' || node.type === 'project') return compact ? 7 : 12;
+  if (node.type === 'concept') return compact ? 6 : 10;
+  if (node.type === 'tag') return compact ? 4.5 : 7;
+  return compact ? 5.5 : 9;
+};
+const labelVisible = (node: GraphNode, compact: boolean) => !compact && ['section', 'category', 'project', 'concept'].includes(node.type);
 
 function initializeGraph(root: HTMLElement) {
   if (root.dataset.ready === 'true') return;

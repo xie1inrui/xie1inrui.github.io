@@ -1,9 +1,15 @@
 ---
-title: ""
+title: "技术笔记标题"
 date: YYYY-MM-DD
+type: "note"
+section: "Notes"
 category: "AI infra"
 tags: []
-summary: ""
+concepts: []
+parents: []
+projects: []
+papers: []
+summary: "一句话总结这篇笔记解决的问题。"
 status: "draft"
 ---
 
@@ -13,15 +19,7 @@ status: "draft"
 
 ## 关键代码
 
-```ts
-// code here
-```
-
 ## 命令记录
-
-```bash
-# commands here
-```
 
 ## 踩坑记录
 

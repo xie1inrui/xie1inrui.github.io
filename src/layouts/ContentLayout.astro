@@ -1,14 +1,15 @@
 ---
 import BaseLayout from './BaseLayout.astro';
 import TagList from '@/components/TagList.astro';
-import { formatDate } from '@/utils/content';
+import { collectionMeta, formatDate } from '@/utils/content';
 const { entry } = Astro.props;
+const meta = collectionMeta[entry.collection as keyof typeof collectionMeta];
 const base = import.meta.env.BASE_URL;
 const url = (href: string) => `${base}${href.replace(/^\//, '')}`;
 ---
 <BaseLayout title={entry.data.title} description={entry.data.summary}>
   <article>
-    <a href={url(`/${entry.collection}/`)} class="text-sm text-[var(--muted)] transition hover:text-[var(--accent)]">← 返回列表</a>
+    <a href={url(meta.href)} class="text-sm text-[var(--muted)] transition hover:text-[var(--accent)]">← Back to {meta.label}</a>
     <header class="mt-8 border-b border-[var(--line)] pb-8">
       <div class="mb-4 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
         <span>{entry.data.category}</span><span>·</span><time datetime={entry.data.date.toISOString()}>{formatDate(entry.data.date)}</time><span>·</span><span>{entry.data.status}</span>

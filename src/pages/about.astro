@@ -1,5 +1,36 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import { site } from '@/data/site';
+const base = import.meta.env.BASE_URL;
+const url = (href: string) => `${base}${href.replace(/^\//, '')}`;
 ---
-<BaseLayout title="关于我" description="个人研究方向与知识库维护原则"><article class="mx-auto max-w-3xl"><h1 class="text-4xl font-semibold tracking-[-0.05em]">关于我</h1><p class="mt-5 text-lg leading-8 text-zinc-600 dark:text-zinc-300">这里是一个计算机科研人员的公开知识库，关注 AI System、LLM Inference、LLM Distributed Training 与 AI infra。</p><h2 class="mt-10 text-2xl font-semibold">研究方向</h2><ul class="mt-4 grid gap-3">{site.researchDirections.map((item)=><li class="card rounded-xl p-4">{item}</li>)}</ul><h2 class="mt-10 text-2xl font-semibold">维护原则</h2><ol class="mt-4 list-decimal space-y-3 pl-5 text-zinc-600 dark:text-zinc-300"><li>每篇论文都围绕研究问题和系统设计取舍来记录。</li><li>每条技术笔记都保留可复现命令、关键代码和踩坑记录。</li><li>项目归档重视阶段性结论、失败原因和可复用资产。</li><li>通过标签、分类、搜索和知识图谱降低长期检索成本。</li></ol></article></BaseLayout>
+<BaseLayout title="About Me" description="About Xie Linrui">
+  <article>
+    <p class="mb-3 text-sm text-[var(--muted)]">About Me</p>
+    <h1 class="text-4xl font-black tracking-[-0.07em] sm:text-5xl">{site.author}</h1>
+    <p class="mt-5 text-lg leading-8 text-[var(--muted)]">I am interested in building efficient, scalable, and understandable AI systems. My current focus includes LLM inference systems, distributed training, and AI infrastructure.</p>
+
+    <section class="mt-10 border-t border-[var(--line)] pt-8">
+      <h2 class="text-2xl font-black tracking-[-0.05em]">Research Interests</h2>
+      <ul class="mt-4 list-disc space-y-2 pl-5 text-[var(--muted)]">
+        {site.researchDirections.map((item) => <li>{item}</li>)}
+      </ul>
+    </section>
+
+    <section class="mt-10 border-t border-[var(--line)] pt-8">
+      <h2 class="text-2xl font-black tracking-[-0.05em]">Contact</h2>
+      <p class="mt-4 text-[var(--muted)]">Email: <a class="text-[var(--accent)]" href={`mailto:${site.email}`}>{site.email}</a></p>
+      <p class="mt-2 text-[var(--muted)]">GitHub: <a class="text-[var(--accent)]" href="https://github.com/xie1inrui">xie1inrui</a></p>
+    </section>
+
+    <section class="mt-10 border-t border-[var(--line)] pt-8">
+      <h2 class="text-2xl font-black tracking-[-0.05em]">Site Map</h2>
+      <div class="mt-4 grid gap-3 sm:grid-cols-2">
+        <a class="rounded-lg border border-[var(--line)] p-4 hover:border-[var(--accent)]" href={url('/research/')}>Research</a>
+        <a class="rounded-lg border border-[var(--line)] p-4 hover:border-[var(--accent)]" href={url('/blog/')}>Blog</a>
+        <a class="rounded-lg border border-[var(--line)] p-4 hover:border-[var(--accent)]" href={url('/notes/')}>Notes</a>
+        <a class="rounded-lg border border-[var(--line)] p-4 hover:border-[var(--accent)]" href={url('/projects/')}>Projects</a>
+      </div>
+    </section>
+  </article>
+</BaseLayout>

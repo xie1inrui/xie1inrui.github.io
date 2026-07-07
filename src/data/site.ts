@@ -1,15 +1,19 @@
 export const site = {
-  title: 'Xielinrui Knowledge Base',
-  shortTitle: 'XR KB',
-  author: 'Xielinrui',
-  description: 'AI System · LLM Inference · Distributed Training · AI Infra',
+  title: 'Xie Linrui',
+  shortTitle: 'Xie Linrui',
+  author: 'Xie Linrui',
+  description: 'AI Systems · LLM Inference · Distributed Training · AI Infrastructure',
+  url: 'https://xie1inrui.github.io',
+  email: 'your.email@example.com',
   nav: [
-    { href: '/', label: '首页', icon: '⌂' },
-    { href: '/papers/', label: '论文阅读', icon: '◫' },
-    { href: '/notes/', label: '技术笔记', icon: '✎' },
-    { href: '/projects/', label: '项目归档', icon: '▣' },
-    { href: '/graph/', label: '知识图谱', icon: '◎' },
-    { href: '/about/', label: '关于我', icon: '◇' }
+    { href: '/', label: 'Home', icon: '⌂' },
+    { href: '/about/', label: 'About', icon: '◇' },
+    { href: '/cv/', label: 'CV', icon: '▤' },
+    { href: '/research/', label: 'Research', icon: '◫' },
+    { href: '/notes/', label: 'Notes', icon: '✎' },
+    { href: '/projects/', label: 'Projects', icon: '▣' },
+    { href: '/blog/', label: 'Blog', icon: '✦' },
+    { href: '/graph/', label: 'Graph', icon: '◎' }
   ],
-  researchDirections: ['AI System', 'LLM Inference', 'LLM Distributed Training', 'AI infra']
+  researchDirections: ['AI Systems', 'LLM Inference', 'Distributed Training', 'AI Infrastructure']
 };

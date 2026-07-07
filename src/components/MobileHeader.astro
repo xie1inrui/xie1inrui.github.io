@@ -7,11 +7,12 @@ const url = (href: string) => `${base}${href.replace(/^\//, '')}`;
   <div class="mx-auto flex max-w-3xl items-center justify-between gap-3">
     <a href={url('/')} class="font-mono text-sm font-bold text-[var(--accent)]">{site.shortTitle}</a>
     <nav class="flex items-center gap-3 overflow-x-auto text-sm text-[var(--muted)]">
-      <a href={url('/papers/')}>论文</a>
-      <a href={url('/notes/')}>笔记</a>
-      <a href={url('/projects/')}>项目</a>
-      <a href={url('/search/')}>搜索</a>
-      <button id="mobile-theme-toggle" class="rounded border border-[var(--line)] px-2 py-1" aria-label="切换暗色模式">◐</button>
+      <a href={url('/about/')}>About</a>
+      <a href={url('/cv/')}>CV</a>
+      <a href={url('/research/')}>Research</a>
+      <a href={url('/blog/')}>Blog</a>
+      <a href={url('/notes/')}>Notes</a>
+      <button id="mobile-theme-toggle" class="rounded border border-[var(--line)] px-2 py-1" aria-label="Toggle dark mode">◐</button>
     </nav>
   </div>
 </header>

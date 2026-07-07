@@ -1,0 +1,42 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { site } from '@/data/site';
+---
+<BaseLayout title="CV" description="Curriculum vitae of Xie Linrui">
+  <article>
+    <div class="flex flex-col gap-4 border-b border-[var(--line)] pb-8 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <p class="mb-3 text-sm text-[var(--muted)]">Curriculum Vitae</p>
+        <h1 class="text-4xl font-black tracking-[-0.07em] sm:text-5xl">{site.author}</h1>
+        <p class="mt-4 text-[var(--muted)]">AI Systems · LLM Inference · Distributed Training · AI Infrastructure</p>
+      </div>
+      <a class="rounded-md border border-[var(--line)] px-3 py-2 text-sm text-[var(--muted)] hover:text-[var(--fg)]" href="/cv.pdf">Download PDF</a>
+    </div>
+
+    <section class="mt-8">
+      <h2 class="text-2xl font-black tracking-[-0.05em]">Education</h2>
+      <div class="mt-4 space-y-4 text-[var(--muted)]">
+        <p><strong class="text-[var(--fg)]">Your University / Institute</strong> — Your degree or role, YYYY–YYYY</p>
+      </div>
+    </section>
+
+    <section class="mt-8 border-t border-[var(--line)] pt-8">
+      <h2 class="text-2xl font-black tracking-[-0.05em]">Research Experience</h2>
+      <ul class="mt-4 list-disc space-y-2 pl-5 text-[var(--muted)]">
+        <li>LLM inference runtime, serving, scheduling, and KV cache management.</li>
+        <li>Distributed training systems and performance analysis.</li>
+        <li>AI infrastructure tooling and reproducible engineering workflows.</li>
+      </ul>
+    </section>
+
+    <section class="mt-8 border-t border-[var(--line)] pt-8">
+      <h2 class="text-2xl font-black tracking-[-0.05em]">Selected Skills</h2>
+      <p class="mt-4 leading-8 text-[var(--muted)]">Python, TypeScript, C/C++, Linux, CUDA basics, distributed systems, profiling, benchmarking, web engineering, documentation systems.</p>
+    </section>
+
+    <section class="mt-8 border-t border-[var(--line)] pt-8">
+      <h2 class="text-2xl font-black tracking-[-0.05em]">Publications / Preprints</h2>
+      <p class="mt-4 text-[var(--muted)]">Add selected publications here, or keep detailed paper notes under Research.</p>
+    </section>
+  </article>
+</BaseLayout>

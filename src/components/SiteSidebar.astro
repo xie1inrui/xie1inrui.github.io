@@ -4,22 +4,22 @@ const current = Astro.url.pathname;
 const base = import.meta.env.BASE_URL;
 const url = (href: string) => `${base}${href.replace(/^\//, '')}`;
 ---
-<aside class="kb-sidebar" aria-label="主导航">
+<aside class="kb-sidebar" aria-label="Main navigation">
   <div class="mb-9">
     <a href={url('/')} class="block text-3xl font-bold tracking-[-0.06em] text-[var(--accent)]">{site.shortTitle}</a>
     <p class="mt-3 max-w-[13rem] text-sm leading-6 text-[var(--muted)]">{site.description}</p>
   </div>
 
   <a href={url('/search/')} class="mb-7 flex items-center gap-2 rounded-md border border-[var(--line)] px-3 py-2 text-sm text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--fg)]">
-    <span class="text-lg">⌕</span><span>搜索</span>
+    <span class="text-lg">⌕</span><span>Search</span>
   </a>
 
   <div class="mb-7 flex items-center gap-2">
-    <button id="theme-toggle" class="rounded-md border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--muted)] hover:text-[var(--fg)]" aria-label="切换暗色模式">◐</button>
+    <button id="theme-toggle" class="rounded-md border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--muted)] hover:text-[var(--fg)]" aria-label="Toggle dark mode">◐</button>
     <span class="text-xs text-[var(--muted)]">Dark / Light</span>
   </div>
 
-  <p class="mb-3 text-sm font-semibold">探索</p>
+  <p class="mb-3 text-sm font-semibold">Navigation</p>
   <nav class="space-y-1">
     {site.nav.map((item) => {
       const active = current === item.href || (item.href !== '/' && current.startsWith(item.href));

@@ -1,8 +1,13 @@
 ---
 title: "Astro Markdown 知识库工作流"
 date: 2026-06-22
+type: "note"
+section: "Notes"
 category: "AI infra"
 tags: ["Astro", "Markdown", "Knowledge Management"]
+concepts: ["Content Collections", "Frontmatter", "Static Generation", "GitHub Pages"]
+parents: ["Tools", "Knowledge Management"]
+projects: ["Personal Knowledge Website"]
 summary: "用 Astro Content Collections 约束 Frontmatter，使长期维护的 Markdown 内容具备类型安全和可索引性。"
 status: "stable"
 ---

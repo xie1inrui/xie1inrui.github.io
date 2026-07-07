@@ -7,46 +7,56 @@ import { getAllEntries, getAllTags, normalizeSlug } from '@/utils/content';
 const base = import.meta.env.BASE_URL;
 const url = (href: string) => `${base}${href.replace(/^\//, '')}`;
 const entries = await getAllEntries();
-const recent = entries.slice(0, 7);
-const tags = getAllTags(entries).slice(0, 24);
+const recent = entries.slice(0, 6);
+const tags = getAllTags(entries).slice(0, 20);
+const entrances = [
+  { href: '/about/', title: 'About', desc: 'About me, current focus, contact, and links.', icon: '◇' },
+  { href: '/cv/', title: 'CV', desc: 'Education, experience, skills, and selected projects.', icon: '▤' },
+  { href: '/research/', title: 'Research', desc: 'Paper readings and research topics in AI systems.', icon: '◫' },
+  { href: '/notes/', title: 'Notes', desc: 'Technical notes, server tools, and reusable knowledge.', icon: '✎' },
+  { href: '/projects/', title: 'Projects', desc: 'Project branches, experiment logs, and retrospectives.', icon: '▣' },
+  { href: '/blog/', title: 'Blog', desc: 'Learning life, internship reflections, and personal writing.', icon: '✦' },
+  { href: '/graph/', title: 'Graph', desc: 'Explore sections, concepts, notes, papers, and projects.', icon: '◎' }
+];
 ---
 <BaseLayout>
-  <article class="pb-8">
-    <p class="mb-3 text-sm text-[var(--muted)]">Personal research knowledge base</p>
+  <section class="pb-10">
+    <p class="mb-3 text-sm text-[var(--muted)]">Personal homepage & knowledge archive</p>
     <h1 class="text-5xl font-black leading-none tracking-[-0.08em] sm:text-6xl">{site.author}</h1>
-    <blockquote class="mt-6 border-l-4 border-[var(--accent)] pl-4 text-lg text-[var(--muted)]">AI System · LLM Inference · Distributed Training · AI Infra</blockquote>
+    <p class="mt-5 max-w-2xl text-xl leading-8 text-[var(--muted)]">Research-oriented full-stack engineer focusing on AI systems, LLM inference, distributed training, and AI infrastructure.</p>
+  </section>
 
-    <section class="mt-10">
-      <h2 class="text-2xl font-black tracking-[-0.05em]">About</h2>
-      <p class="mt-4 leading-8 text-[var(--muted)]">这里是一个计算机科研人员的长期知识库，用于沉淀论文阅读、技术学习和项目复盘。内容组织方式偏科研人员工作流：问题意识、系统架构、实验记录、工程踩坑和可复用结论。</p>
-    </section>
+  <section class="border-y border-[var(--line)] py-8">
+    <h2 class="text-2xl font-black tracking-[-0.05em]">Start Here</h2>
+    <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {entrances.map((item) => (
+        <a href={url(item.href)} class="group rounded-xl border border-[var(--line)] bg-[var(--panel)]/35 p-4 transition hover:border-[var(--accent)] hover:bg-[var(--panel)]">
+          <div class="flex items-center gap-3">
+            <span class="text-xl text-[var(--accent)]">{item.icon}</span>
+            <h3 class="font-bold tracking-tight group-hover:text-[var(--accent)]">{item.title}</h3>
+          </div>
+          <p class="mt-3 text-sm leading-6 text-[var(--muted)]">{item.desc}</p>
+        </a>
+      ))}
+    </div>
+  </section>
 
-    <section class="mt-10">
-      <h2 class="text-2xl font-black tracking-[-0.05em]">知识库 / Knowledge Base</h2>
-      <ul class="mt-4 space-y-2 leading-7 text-[var(--muted)]">
-        <li>• <a class="font-bold text-[var(--accent)] hover:text-[var(--fg)]" href={url('/papers/')}>论文阅读</a> — 研究问题、核心思想、架构与实验分析</li>
-        <li>• <a class="font-bold text-[var(--accent)] hover:text-[var(--fg)]" href={url('/notes/')}>技术笔记</a> — 概念、代码、命令与踩坑记录</li>
-        <li>• <a class="font-bold text-[var(--accent)] hover:text-[var(--fg)]" href={url('/projects/')}>项目归档</a> — 项目过程、实验结论与复盘</li>
-        <li>• <a class="font-bold text-[var(--accent)] hover:text-[var(--fg)]" href={url('/notes/site-maintenance-guide/')}>维护指南</a> — 如何新增内容、预览、部署与长期维护</li>
-      </ul>
-    </section>
-
-    <section class="mt-8 flex flex-wrap gap-2">
+  <section class="border-b border-[var(--line)] py-8">
+    <h2 class="text-2xl font-black tracking-[-0.05em]">Research Focus</h2>
+    <div class="mt-4 flex flex-wrap gap-2">
       {site.researchDirections.map((item) => <span class="rounded-md bg-[var(--tag)] px-2.5 py-1 text-sm text-[var(--muted)]">{item}</span>)}
-    </section>
-  </article>
+    </div>
+  </section>
 
-  <hr class="my-8 border-[var(--line)]" />
-
-  <section class="grid gap-8 xl:grid-cols-[1fr_250px]">
+  <section class="grid gap-8 py-8 xl:grid-cols-[1fr_250px]">
     <div>
-      <h2 class="mb-4 text-lg font-black tracking-tight">最近的笔记</h2>
+      <h2 class="mb-4 text-lg font-black tracking-tight">Recent Updates</h2>
       <div>{recent.map((entry)=><ContentCard entry={entry}/>)}</div>
     </div>
     <aside class="space-y-5 xl:hidden">
       <SearchBox />
       <div class="rounded-lg border border-[var(--line)] bg-[var(--panel)]/45 p-4">
-        <h2 class="font-bold">标签索引</h2>
+        <h2 class="font-bold">Tags</h2>
         <div class="mt-4 flex flex-wrap gap-2">{tags.map(([tag,count])=><a href={url(`/tags/${normalizeSlug(tag)}/`)} class="rounded-md bg-[var(--tag)] px-2 py-1 text-xs text-[var(--muted)]">#{tag} {count}</a>)}</div>
       </div>
     </aside>
