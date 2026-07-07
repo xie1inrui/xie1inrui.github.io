@@ -2,63 +2,114 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import ContentCard from '@/components/ContentCard.astro';
 import SearchBox from '@/components/SearchBox.astro';
-import { site } from '@/data/site';
+import KnowledgeGraph from '@/components/KnowledgeGraph.astro';
 import { getAllEntries, getAllTags, normalizeSlug } from '@/utils/content';
 const base = import.meta.env.BASE_URL;
 const url = (href: string) => `${base}${href.replace(/^\//, '')}`;
 const entries = await getAllEntries();
-const recent = entries.slice(0, 6);
-const tags = getAllTags(entries).slice(0, 20);
-const entrances = [
-  { href: '/about/', title: 'About', desc: 'About me, current focus, contact, and links.', icon: '◇' },
-  { href: '/cv/', title: 'CV', desc: 'Education, experience, skills, and selected projects.', icon: '▤' },
-  { href: '/research/', title: 'Research', desc: 'Paper readings and research topics in AI systems.', icon: '◫' },
-  { href: '/notes/', title: 'Notes', desc: 'Technical notes, server tools, and reusable knowledge.', icon: '✎' },
-  { href: '/projects/', title: 'Projects', desc: 'Project branches, experiment logs, and retrospectives.', icon: '▣' },
-  { href: '/blog/', title: 'Blog', desc: 'Learning life, internship reflections, and personal writing.', icon: '✦' },
-  { href: '/graph/', title: 'Graph', desc: 'Explore sections, concepts, notes, papers, and projects.', icon: '◎' }
+const recent = entries.slice(0, 5);
+const tags = getAllTags(entries).slice(0, 18);
+const stats = [
+  { label: 'Entries', value: entries.length.toString() },
+  { label: 'Concepts', value: tags.length.toString() },
+  { label: 'Papers', value: entries.filter((e)=>e.collection === 'papers').length.toString() },
+  { label: 'Projects', value: entries.filter((e)=>e.collection === 'projects').length.toString() }
+];
+const focusCards = [
+  { href: '/research/', kicker: 'Research', title: 'LLM Inference', desc: 'Paper readings around serving runtimes, KV cache, batching, and systems trade-offs.', meta: 'papers / systems / notes', accent: 'violet' },
+  { href: '/notes/', kicker: 'Technical Notes', title: 'AI Infrastructure', desc: 'Reusable engineering notes for servers, tools, deployment, and long-term learning.', meta: 'commands / pitfalls / concepts', accent: 'cyan' },
+  { href: '/projects/', kicker: 'Project Archive', title: 'Inference Lab', desc: 'Experiments, project branches, benchmarks, and implementation retrospectives.', meta: 'experiments / logs / retrospectives', accent: 'emerald' },
+  { href: '/graph/', kicker: 'Knowledge Map', title: 'Semantic Graph', desc: 'Navigate sections, categories, concepts, tags, papers, and projects as one system.', meta: 'sections / concepts / relations', accent: 'amber' }
 ];
 ---
 <BaseLayout>
-  <section class="pb-10">
-    <p class="mb-3 text-sm text-[var(--muted)]">Personal homepage & knowledge archive</p>
-    <h1 class="text-5xl font-black leading-none tracking-[-0.08em] sm:text-6xl">{site.author}</h1>
-    <p class="mt-5 max-w-2xl text-xl leading-8 text-[var(--muted)]">Research-oriented full-stack engineer focusing on AI systems, LLM inference, distributed training, and AI infrastructure.</p>
+  <section class="linear-panel linear-glow rounded-[28px] px-6 py-8 sm:px-9 sm:py-11">
+    <div class="flex flex-wrap items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--muted)]">
+      <span class="h-1.5 w-1.5 rounded-full bg-[var(--emerald)] shadow-[0_0_18px_rgba(52,211,153,.7)]"></span>
+      Personal research operating system
+    </div>
+    <div class="mt-7 grid gap-8 xl:grid-cols-[1.05fr_.95fr] xl:items-end">
+      <div>
+        <h1 class="max-w-3xl text-[3.25rem] font-[600] leading-[0.95] tracking-[-0.085em] text-[var(--fg)] sm:text-[4.9rem]">
+          Building an AI systems knowledge base.
+        </h1>
+        <p class="mt-6 max-w-2xl text-lg leading-8 text-[var(--muted)] sm:text-xl">
+          I use this site to organize paper readings, technical notes, and project records around LLM inference, distributed training, and AI infrastructure.
+        </p>
+        <div class="mt-7 flex flex-wrap gap-3">
+          <a href={url('/graph/')} class="rounded-xl bg-[var(--accent-2)] px-4 py-2.5 text-sm font-medium text-white shadow-[0_0_34px_rgba(94,106,210,.42)] transition hover:bg-[var(--accent-hover)]">Explore Graph</a>
+          <a href={url('/research/')} class="rounded-xl border border-[var(--line)] bg-[var(--card)] px-4 py-2.5 text-sm font-medium text-[var(--fg)] transition hover:bg-[var(--card-hover)]">Read Research</a>
+        </div>
+      </div>
+      <div class="rounded-2xl border border-[var(--line)] bg-black/20 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.04)]">
+        <div class="grid grid-cols-2 gap-3">
+          {stats.map((item) => (
+            <div class="rounded-xl border border-[var(--line-soft)] bg-[var(--tag)] p-4">
+              <div class="text-3xl font-semibold tracking-[-0.06em] text-[var(--fg)]">{item.value}</div>
+              <div class="mt-1 font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--muted-2)]">{item.label}</div>
+            </div>
+          ))}
+        </div>
+        <div class="mt-4 rounded-xl border border-[var(--line-soft)] bg-[var(--bg)]/35 p-3 font-mono text-xs leading-6 text-[var(--muted)]">
+          <span class="text-[var(--accent-hover)]">system:</span> markdown → metadata → graph → pages
+        </div>
+      </div>
+    </div>
   </section>
 
-  <section class="border-y border-[var(--line)] py-8">
-    <h2 class="text-2xl font-black tracking-[-0.05em]">Start Here</h2>
-    <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {entrances.map((item) => (
-        <a href={url(item.href)} class="group rounded-xl border border-[var(--line)] bg-[var(--panel)]/35 p-4 transition hover:border-[var(--accent)] hover:bg-[var(--panel)]">
-          <div class="flex items-center gap-3">
-            <span class="text-xl text-[var(--accent)]">{item.icon}</span>
-            <h3 class="font-bold tracking-tight group-hover:text-[var(--accent)]">{item.title}</h3>
+  <section class="py-8">
+    <div class="mb-4 flex items-end justify-between gap-4">
+      <div>
+        <p class="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--muted-2)]">Research Compass</p>
+        <h2 class="mt-2 text-2xl font-semibold tracking-[-0.05em]">Core directions</h2>
+      </div>
+      <a class="hidden text-sm text-[var(--muted)] transition hover:text-[var(--accent-hover)] sm:block" href={url('/graph/')}>Open knowledge map →</a>
+    </div>
+    <div class="grid gap-3 sm:grid-cols-2">
+      {focusCards.map((item) => (
+        <a href={url(item.href)} class={`group linear-panel rounded-2xl p-5 transition duration-300 hover:-translate-y-0.5 hover:border-[var(--accent)]`}>
+          <div class="flex items-center justify-between gap-3">
+            <span class="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--muted-2)]">{item.kicker}</span>
+            <span class="text-[var(--muted-2)] transition group-hover:translate-x-0.5 group-hover:text-[var(--accent-hover)]">↗</span>
           </div>
-          <p class="mt-3 text-sm leading-6 text-[var(--muted)]">{item.desc}</p>
+          <h3 class="mt-4 text-2xl font-semibold tracking-[-0.055em] text-[var(--fg)]">{item.title}</h3>
+          <p class="mt-3 min-h-[72px] text-sm leading-6 text-[var(--muted)]">{item.desc}</p>
+          <div class="mt-4 rounded-full border border-[var(--line-soft)] bg-[var(--tag)] px-3 py-1.5 font-mono text-[11px] text-[var(--muted)]">{item.meta}</div>
         </a>
       ))}
     </div>
   </section>
 
-  <section class="border-b border-[var(--line)] py-8">
-    <h2 class="text-2xl font-black tracking-[-0.05em]">Research Focus</h2>
-    <div class="mt-4 flex flex-wrap gap-2">
-      {site.researchDirections.map((item) => <span class="rounded-md bg-[var(--tag)] px-2.5 py-1 text-sm text-[var(--muted)]">{item}</span>)}
+  <section class="grid gap-5 py-2 xl:grid-cols-[1.1fr_.9fr]">
+    <div class="linear-panel rounded-3xl p-5">
+      <div class="mb-4 flex items-center justify-between">
+        <div>
+          <p class="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--muted-2)]">Live Map</p>
+          <h2 class="mt-2 text-xl font-semibold tracking-[-0.04em]">Knowledge graph preview</h2>
+        </div>
+        <a href={url('/graph/')} class="rounded-lg border border-[var(--line)] bg-[var(--tag)] px-3 py-1.5 text-xs text-[var(--muted)] transition hover:text-[var(--fg)]">Fullscreen</a>
+      </div>
+      <KnowledgeGraph variant="rail" limit={26} />
+    </div>
+    <div class="linear-panel rounded-3xl p-5">
+      <p class="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--muted-2)]">Tags & Concepts</p>
+      <div class="mt-4 flex flex-wrap gap-2">
+        {tags.map(([tag,count])=><a href={url(`/tags/${normalizeSlug(tag)}/`)} class="rounded-full border border-[var(--line)] bg-[var(--tag)] px-3 py-1.5 text-xs text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--fg)]">#{tag} <span class="text-[var(--muted-2)]">{count}</span></a>)}
+      </div>
+      <div class="mt-5 xl:hidden"><SearchBox /></div>
     </div>
   </section>
 
-  <section class="grid gap-8 py-8 xl:grid-cols-[1fr_250px]">
-    <div>
-      <h2 class="mb-4 text-lg font-black tracking-tight">Recent Updates</h2>
-      <div>{recent.map((entry)=><ContentCard entry={entry}/>)}</div>
-    </div>
-    <aside class="space-y-5 xl:hidden">
-      <SearchBox />
-      <div class="rounded-lg border border-[var(--line)] bg-[var(--panel)]/45 p-4">
-        <h2 class="font-bold">Tags</h2>
-        <div class="mt-4 flex flex-wrap gap-2">{tags.map(([tag,count])=><a href={url(`/tags/${normalizeSlug(tag)}/`)} class="rounded-md bg-[var(--tag)] px-2 py-1 text-xs text-[var(--muted)]">#{tag} {count}</a>)}</div>
+  <section class="py-8">
+    <div class="mb-4 flex items-end justify-between gap-4">
+      <div>
+        <p class="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--muted-2)]">Timeline</p>
+        <h2 class="mt-2 text-2xl font-semibold tracking-[-0.05em]">Recent updates</h2>
       </div>
-    </aside>
+      <a href={url('/notes/')} class="text-sm text-[var(--muted)] transition hover:text-[var(--accent-hover)]">Browse all →</a>
+    </div>
+    <div class="linear-panel overflow-hidden rounded-3xl px-5">
+      {recent.map((entry)=><ContentCard entry={entry}/>)}
+    </div>
   </section>
 </BaseLayout>

@@ -1,19 +1,22 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import KnowledgeGraph from '@/components/KnowledgeGraph.astro';
+const legend = [
+  ['section', 'var(--accent)'],
+  ['category', 'var(--cyan)'],
+  ['content', 'var(--fg)'],
+  ['concept', 'var(--emerald)'],
+  ['project', 'var(--amber)'],
+  ['tag', 'var(--muted)']
+];
 ---
 <BaseLayout title="Knowledge Graph" description="Explore sections, categories, content, concepts, tags, and project relations.">
-  <header class="mb-8">
-    <p class="mb-3 text-sm text-[var(--muted)]">Knowledge Graph</p>
-    <h1 class="text-4xl font-black tracking-[-0.07em] sm:text-5xl">Knowledge Graph</h1>
-    <p class="mt-4 leading-8 text-[var(--muted)]">This graph connects high-level sections, categories, concrete pages, technical concepts, tags, and project branches. Large nodes are sections or categories; smaller nodes are articles, notes, projects, tags, and concepts.</p>
-    <div class="mt-4 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
-      <span class="rounded-md bg-[var(--tag)] px-2 py-1">section</span>
-      <span class="rounded-md bg-[var(--tag)] px-2 py-1">category</span>
-      <span class="rounded-md bg-[var(--tag)] px-2 py-1">content</span>
-      <span class="rounded-md bg-[var(--tag)] px-2 py-1">concept</span>
-      <span class="rounded-md bg-[var(--tag)] px-2 py-1">project</span>
-      <span class="rounded-md bg-[var(--tag)] px-2 py-1">tag</span>
+  <header class="linear-panel linear-glow mb-6 rounded-[28px] px-6 py-8 sm:px-8">
+    <p class="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--muted-2)]">Knowledge topology</p>
+    <h1 class="mt-4 text-4xl font-semibold leading-none tracking-[-0.075em] sm:text-6xl">Semantic Knowledge Graph</h1>
+    <p class="mt-5 max-w-3xl text-base leading-8 text-[var(--muted)]">This graph connects high-level sections, categories, concrete pages, technical concepts, tags, and project branches. Use it as the visual control plane for your research archive.</p>
+    <div class="mt-5 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
+      {legend.map(([label, color]) => <span class="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--tag)] px-3 py-1.5"><span class="h-2 w-2 rounded-full" style={`background:${color}; box-shadow:0 0 14px ${color}`}></span>{label}</span>)}
     </div>
   </header>
   <KnowledgeGraph />

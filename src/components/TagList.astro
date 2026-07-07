@@ -6,5 +6,5 @@ const base = import.meta.env.BASE_URL;
 const url = (href: string) => `${base}${href.replace(/^\//, '')}`;
 ---
 <div class="flex flex-wrap gap-2">
-  {tags.map((tag) => <a href={url(`/tags/${normalizeSlug(tag)}/`)} class="rounded-md bg-[var(--tag)] px-2 py-1 text-xs font-medium text-[var(--muted)] transition hover:text-[var(--fg)]">#{tag}</a>)}
+  {tags.map((tag) => <a href={url(`/tags/${normalizeSlug(tag)}/`)} class="rounded-full border border-[var(--line-soft)] bg-[var(--tag)] px-2.5 py-1 text-[11px] font-medium text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--fg)]">#{tag}</a>)}
 </div>

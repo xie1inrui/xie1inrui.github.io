@@ -6,17 +6,17 @@ const { entry } = Astro.props;
 const base = import.meta.env.BASE_URL;
 const url = (href: string) => `${base}${href.replace(/^\//, '')}`;
 ---
-<article class="group border-b border-[var(--line)] py-5 first:pt-0">
-  <div class="mb-1 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
-    <a href={url(collectionMeta[entry.collection].href)} class="hover:text-[var(--accent)]">{collectionMeta[entry.collection].label}</a>
-    <span>·</span>
-    <a href={url(`/categories/${normalizeSlug(entry.data.category)}/`)} class="hover:text-[var(--accent)]">{entry.data.category}</a>
-    <span>·</span>
+<article class="group border-b border-[var(--line-soft)] py-5 last:border-b-0">
+  <div class="mb-2 flex flex-wrap items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--muted-2)]">
+    <a href={url(collectionMeta[entry.collection].href)} class="transition hover:text-[var(--accent-hover)]">{collectionMeta[entry.collection].label}</a>
+    <span class="text-[var(--line)]">/</span>
+    <a href={url(`/categories/${normalizeSlug(entry.data.category)}/`)} class="transition hover:text-[var(--accent-hover)]">{entry.data.category}</a>
+    <span class="text-[var(--line)]">/</span>
     <time datetime={entry.data.date.toISOString()}>{formatDate(entry.data.date)}</time>
   </div>
-  <h2 class="text-xl font-bold leading-snug tracking-[-0.035em] text-[var(--accent)] transition group-hover:text-[var(--fg)]">
+  <h2 class="text-xl font-semibold leading-snug tracking-[-0.045em] text-[var(--fg)] transition group-hover:text-[var(--accent-hover)]">
     <a href={url(entryUrl(entry))}>{entry.data.title}</a>
   </h2>
-  <p class="mt-2 text-sm leading-6 text-[var(--muted)]">{entry.data.summary}</p>
+  <p class="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">{entry.data.summary}</p>
   <div class="mt-3"><TagList tags={entry.data.tags} /></div>
 </article>

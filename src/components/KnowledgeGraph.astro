@@ -12,17 +12,18 @@ const { nodes, links } = buildKnowledgeGraph(allEntries, limit);
 const graphData = JSON.stringify({ nodes, links });
 const isRail = variant === 'rail';
 ---
-<div class:list={['knowledge-graph-widget group relative overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--panel)]/45', isRail ? 'h-[230px]' : 'h-[640px]']} data-variant={variant}>
-  <div class="pointer-events-none absolute left-3 top-3 z-10 rounded-md bg-[var(--bg)]/75 px-2 py-1 text-xs text-[var(--muted)] backdrop-blur">
+<div class:list={['knowledge-graph-widget group relative overflow-hidden rounded-2xl border border-[var(--line)] bg-[radial-gradient(circle_at_50%_0%,rgba(113,112,255,.12),transparent_34rem),rgba(255,255,255,.018)] shadow-[inset_0_1px_0_rgba(255,255,255,.045)]', isRail ? 'h-[270px]' : 'h-[680px]']} data-variant={variant}>
+  <div class="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,.018)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.014)_1px,transparent_1px)] bg-[length:42px_42px] opacity-60"></div>
+  <div class="pointer-events-none absolute left-3 top-3 z-10 rounded-xl border border-[var(--line)] bg-[var(--bg)]/70 px-2.5 py-1.5 font-mono text-[11px] text-[var(--muted)] backdrop-blur">
     {nodes.length} nodes · {links.length} links
   </div>
   {!isRail && (
-    <div class="pointer-events-none absolute bottom-3 left-3 z-10 rounded-md bg-[var(--bg)]/75 px-2 py-1 text-xs text-[var(--muted)] backdrop-blur">
+    <div class="pointer-events-none absolute bottom-3 left-3 z-10 rounded-xl border border-[var(--line)] bg-[var(--bg)]/70 px-2.5 py-1.5 font-mono text-[11px] text-[var(--muted)] backdrop-blur">
       滚轮缩放 · 拖拽节点 · 点击圆点跳转
     </div>
   )}
   <svg class="h-full w-full cursor-grab active:cursor-grabbing" role="img" aria-label="交互式知识图谱"></svg>
-  <div class="graph-tooltip pointer-events-none absolute hidden max-w-[240px] rounded-lg border border-[var(--line)] bg-[var(--bg)]/95 p-3 text-xs shadow-xl backdrop-blur">
+  <div class="graph-tooltip pointer-events-none absolute hidden max-w-[260px] rounded-xl border border-[var(--line)] bg-[var(--bg)]/95 p-3 text-xs shadow-2xl backdrop-blur-xl">
     <div class="font-bold text-[var(--fg)]" data-title></div>
     <div class="mt-1 text-[var(--muted)]" data-summary></div>
   </div>
@@ -53,7 +54,8 @@ type GraphPayload = { nodes: GraphNode[]; links: GraphLink[] };
 
 const baseUrl = import.meta.env.BASE_URL;
 const withBase = (path: string) => `${baseUrl}${path.replace(/^\//, '')}`;
-const color = (type: string) => ({ section: '#9fd3c7', category: '#8fb2c7', content: '#d7d1c7', concept: '#d0aa74', tag: '#7d8790', project: '#c1a1dd' }[type] || '#9b9a93');
+const color = (type: string) => ({ section: '#8b5cf6', category: '#22d3ee', content: '#e5e7eb', concept: '#34d399', tag: '#94a3b8', project: '#f59e0b' }[type] || '#8a8f98');
+const linkColor = (type?: string) => ({ belongs_to: '#7170ff', categorized_as: '#22d3ee', tagged_as: '#94a3b8', mentions: '#34d399', applies_to: '#f59e0b', references: '#a78bfa', related_to: '#64748b' }[type || ''] || '#64748b');
 const radius = (node: GraphNode, compact: boolean) => {
   if (node.type === 'section') return compact ? 10 : 18;
   if (node.type === 'category' || node.type === 'project') return compact ? 7 : 12;
@@ -84,14 +86,22 @@ function initializeGraph(root: HTMLElement) {
   svg.selectAll('*').remove();
 
   const viewport = svg.append('g');
-  const linkLayer = viewport.append('g').attr('stroke', 'currentColor').attr('stroke-opacity', compact ? 0.24 : 0.18);
+  const defs = svg.append('defs');
+  const glow = defs.append('filter').attr('id', `graph-glow-${Math.random().toString(36).slice(2)}`).attr('x', '-80%').attr('y', '-80%').attr('width', '260%').attr('height', '260%');
+  glow.append('feGaussianBlur').attr('stdDeviation', compact ? 2.2 : 3.5).attr('result', 'coloredBlur');
+  const merge = glow.append('feMerge');
+  merge.append('feMergeNode').attr('in', 'coloredBlur');
+  merge.append('feMergeNode').attr('in', 'SourceGraphic');
+
+  const linkLayer = viewport.append('g').attr('stroke-opacity', compact ? 0.28 : 0.22);
   const nodeLayer = viewport.append('g');
 
   const linkSelection = linkLayer
     .selectAll('line')
     .data(links)
     .join('line')
-    .attr('stroke-width', compact ? 0.8 : 1.1);
+    .attr('stroke', (link) => linkColor(link.type))
+    .attr('stroke-width', (link) => link.type === 'belongs_to' ? (compact ? 1.1 : 1.35) : (compact ? 0.75 : 1));
 
   const nodeSelection = nodeLayer
     .selectAll<SVGGElement, GraphNode>('g')
@@ -105,7 +115,7 @@ function initializeGraph(root: HTMLElement) {
       window.location.href = withBase(node.url);
     })
     .on('mouseenter', function (_event, node) {
-      select(this).select('circle').transition().duration(130).attr('r', radius(node, compact) + 4).attr('stroke-width', 2.4);
+      select(this).select('circle').transition().duration(130).attr('r', radius(node, compact) + 4).attr('stroke-width', 2.2).attr('fill-opacity', 1);
       if (tooltip) {
         tooltip.classList.remove('hidden');
         const title = tooltip.querySelector<HTMLElement>('[data-title]');
@@ -129,9 +139,11 @@ function initializeGraph(root: HTMLElement) {
     .append('circle')
     .attr('r', (node) => radius(node, compact))
     .attr('fill', (node) => color(node.type))
-    .attr('fill-opacity', (node) => node.type === 'tag' ? 0.72 : 0.92)
-    .attr('stroke', 'var(--bg)')
-    .attr('stroke-width', 1.4);
+    .attr('fill-opacity', (node) => node.type === 'tag' ? 0.62 : 0.94)
+    .attr('stroke', 'rgba(255,255,255,.72)')
+    .attr('stroke-opacity', (node) => node.type === 'content' ? 0.55 : 0.35)
+    .attr('stroke-width', 1.25)
+    .attr('filter', compact ? null : `url(#${glow.attr('id')})`);
 
   nodeSelection
     .filter((node) => labelVisible(node, compact))
@@ -139,6 +151,7 @@ function initializeGraph(root: HTMLElement) {
     .attr('x', 13)
     .attr('y', 4)
     .attr('font-size', 11)
+    .attr('font-family', 'Inter, system-ui, sans-serif')
     .attr('fill', 'var(--muted)')
     .text((node) => node.label.length > 22 ? `${node.label.slice(0, 22)}…` : node.label);
 
