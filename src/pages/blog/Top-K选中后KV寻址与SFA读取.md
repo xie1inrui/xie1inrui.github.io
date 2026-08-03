@@ -1,8 +1,8 @@
 # Decode Top-K 选中后：KV 物理寻址、回载与 SFA 读取
 
-> 本文只回答一件事：DSA 已经选出 Top-K 以后，一个 `token_id` 如何经过 block table 变成 KV cache 中的实际地址；KV 是否需要从 DRAM 回到 HBM；最后 SFA 用什么 index、什么 block table 读到这份 KV。
+> 本文主要回答：DSA 已经选出 Top-K 以后，一个 original token position 如何经过 block table 变成 KV cache 中的实际地址；KV 是否需要从 DRAM 回到 HBM；最后 SFA 用什么 index、什么 block table 读到这份 KV。文中示例旧称 `token_id=257`，实际均指请求内位置 `p=257`，不是词表 token ID。
 >
-> 对比对象：原生 DSA-off 基线、旧 `v0.19.1rc1-gs`、当前 `vllm-ascend-v0.19.1rc1-gs-glm`。本文不展开 scheduler、block hash、H2D metadata 构造、远端 KV 或请求生命周期。
+> 对比对象：原生 DSA-off 基线、旧 `v0.19.1rc1-gs`、当前 `vllm-ascend-v0.19.1rc1-gs-glm`。为解释 shape 和 resident 状态，本文额外覆盖与本链路直接相关的请求行、MTP 限制、状态生命周期和关键路径；不展开远端 KV 或无关模型计算。
 
 ## 0. 先给结论：三个分支的输出并不完全相同
 
@@ -29,48 +29,11 @@ topk_indices[b,0,:] = [257, 1024, 89, ...]
 
 因此同一个整数 `257` 在两个请求、两个 layer 中都可能出现，但指向的 KV payload 不同。有效历史不足 2048 时，剩余位置可以用 `-1` 表示无效/padding 项。
 
-三个分支可以用同一个例子概括：
-
-```text
-原生：
-topk_indices = 257
-SFA 仍收到 257
-
-旧 GS：
-LI topk index = 257
-GS 查 hit/miss 后把它放在 resident slot 33
-SFA 收到 33，status[33] = 257 保留反向关系
-
-当前 GLM：
-topk_index = 257      # original token position，供 KSC 找 DRAM source
-topk_slots = 33       # resident logical slot，供 KSC 写 HBM、供 SFA 读取
-```
-
-当前 GLM 的 `topk_index/topk_slots` tensor 容量是 16384，但不能把它理解为“输出了 16384 个 attention Key”。稳态稀疏 attention 的计算 Top-K 仍为 2048；更大的容量同时服务于 miss-pair 输出和 ENTER/first-fill resident 填充。
-
-
 首先要避免把代码里的三种“key/index”混为一谈：
 
 1. `token_id` / original token position：Top-K 选中的请求内历史位置，例如 `257`。
 2. resident logical slot：卸载分支把选中 token 放入 resident HBM 后的位置，例如 `33`。
 3. physical block ID：block table 查出的 cache arena 物理 block 编号，例如 `7` 或 `91`。它不是 token ID，也不是裸指针。
-
-三个分支在“选中了哪个历史 token”这一层具有相同语义：输出值都是请求内 original token position；但 ABI、后处理结果以及最终交给 SFA 的 index 不相同。当前 LIDU 与原生 LI 也是不同算子，因此只能说输出语义一致，不能仅凭代码保证每次排序结果逐元素完全一致。
-
-| 分支 | Top-K 算子刚完成时 | 稀疏行最终交给 SFA | 是否先回载 KV |
-|---|---|---|---|
-| 原生 DSA-off | `topk_indices`：INT32 `[B,1,2048]`，值为 original token position | 原样的 original token position | 否；完整 MLA KV 已在 HBM |
-| 旧 `-gs` | 原生 LI 输出 original position；进入 GS 时规范为 INT32 `[B,1,1,2048]` | GS 输出 resident logical slot：先为 `[B,W]`，SFA 前变为 `[B,1,W]` | hit 不一定搬；miss 从 DRAM 搬到 resident HBM |
-| 当前 `-gs-glm` | LIDU 同时输出 `topk_index`、`topk_slots`：INT32 `[B,1,16384]`，另有 `miss_count:[B]`、`tail_info:[B,2]` | SFA-Offload 接收 `topk_slots:[B,1,16384]`；稀疏计算只使用前 2048 个 slot，tail 由 `tail_info` 表示 | KSC 只搬 `[0, miss_count)` miss prefix |
-
-这里的 `16384` 是 LIDU/KSC 的输出与首次填充容量，不代表 SFA 的 Top-K 从 2048 变成了 16384。当前 SFA-Offload 的固定 sparse compute count 仍是 2048。
-
-还有一个非常关键的实现边界：
-
-- block table 的值是 physical block ID。
-- kernel 中算出的 `xxxAddr` 是相对 cache tensor 起点的扁平 element offset。
-- 真正的 GM 字节地址是 `tensor_base_pointer + element_offset * element_size`。
-- BF16/FP16 的 `element_size=2` 字节。
 
 ## 1. 三个分支共用的地址模型
 
@@ -107,23 +70,82 @@ byte address = tensor_base_pointer + element_offset * 2
                （BF16/FP16 都是 2 字节）
 ```
 
-cache 在 vLLM/SFA 边界通常是：
+### 1.1 真正管理 resident HBM 的数据结构
+
+每个启用 DSA 的 attention layer 都有独立的 cache tensor；单层 shape 不含 layer 维。真实 MLA KV 是 vLLM 在 worker/model-runner 初始化时分配到 NPU HBM 的 paged tensor：
 
 ```text
-NOPE_K / latent KV : [num_blocks, 128, 1, 512]
-ROPE_K             : [num_blocks, 128, 1,  64]
+当前 layer 的 HBM resident cache （KV cache）
+├─ NOPE/latent KV : [N_hbm, 128, 1, 512]
+└─ ROPE_K         : [N_hbm, 128, 1,  64]
+
+完整 Indexer K（另一组 cache）
+└─ Indexer K      : [N_indexer, 128, 1, 128]
 ```
 
-GS/KSC 的 copy adapter 会把 singleton KV-head 维 squeeze 掉，kernel 看到的是：
+同一个 Decode token 逐层执行时，每层的 Indexer query、Indexer K 和聚合权重不同，因此 Top-K 和 resident hit/miss 也按层独立；各层不会共用同一份真实 KV payload。
+
+`N_hbm` 是当前层共享 physical block pool 的 block 数，不是 batch。请求维由 `block_table[b,:]` 表达：`b` 选择请求行，逻辑 block 再映射到该层的 physical block。不同 layer 即使得到相同 physical block ID，也会因为 tensor/base pointer 不同而访问不同 KV。
+
+卸载只改变 HBM 保存的容量和职责，不改变单个 block 的布局：
+
+| 场景 | 单层 KV shape | 保存范围 |
+|---|---|---|
+| 原生 HBM | `[N_hbm,128,1,512/64]` | 当前已分配的完整历史 |
+| 卸载分支 resident HBM | `[N_hbm,128,1,512/64]` | resident working set |
+| 卸载分支 DRAM arena | `[N_dram,128,1,512/64]` | 已卸载的完整历史 block |
+
+卸载不会在 Decode 中 reshape 或缩小已有 HBM tensor；`N_hbm` 的实际容量由初始化配置决定，卸载分支只是增加 DRAM backing，并把 HBM 作为 resident working set 使用。所有 arena 都按 layer、NOPE/ROPE plane 分开。GS/KSC adapter 的 `squeeze(2)` 仅把 `[N,128,1,D]` 变成 kernel 接收的 `[N,128,D]` view；base pointer 和 payload 不变。
+
+| 对象 | 谁拥有/维护 | 保存什么 | 谁实际使用 |
+|---|---|---|---|
+| HBM NOPE/ROPE tensor | vLLM KV cache 分配器/model runner | 真正的 resident KV 字节 | GS/KSC 原址写，SFA 读 |
+| HBM block table | vLLM KV manager，并在本轮按 request row staging | logical slot/block → HBM physical block | GS/KSC/SFA |
+| `DSALayerCacheRegistry` | 当前 GLM worker | 每层 HBM tensor 的稳定引用和地址一致性检查；不分配 block | dump/KSC hook 查层 |
+| 旧 GS `resident_slot_token_status` | resident pool 持有，GS 原址更新 | resident slot → original position | 下一 step 的 GS hit/miss |
+| 当前 GLM `cache_slots` | resident pool 持有，LIDU 原址更新 | original position → resident slot | 下一 step 的 LIDU hit/miss |
+
+因此 resident 管理分三层：vLLM 管物理 tensor/block，block table 管请求逻辑块到物理块的映射，GS/LIDU 状态只管 token 与 resident logical slot 的关系。
+
+源码依据：HBM shape 由 `vllm-glm/vllm_ascend/attention/sfa_v1.py:118-125` 和 `vllm-glm/vllm_ascend/worker/model_runner_v1.py:3991-4025` 构造；当前 GLM 的逐层 cache registry 见 `vllm-glm/vllm_ascend/dsa_sparse/dsa_layer_cache_zones.py:20-39,147-184`。
+
+### 1.2 `base_addr` 到底是什么
+
+`base_addr` 就是**当前算子参数中、当前 layer、当前 cache plane tensor 的起始 data pointer**：
 
 ```text
-NOPE_K : [num_blocks, 128, 512]
-ROPE_K : [num_blocks, 128,  64]
+NOPE address = current_layer_nope_base
+             + NOPE element offset * element_size
+
+ROPE address = current_layer_rope_base
+             + ROPE element offset * element_size
 ```
 
-两种 shape 的扁平地址公式相同，因为 KV head 数为 1。
+它不是某个请求的起始地址，也不是整个模型所有 layer 的统一 KV 起始地址。请求和 token 的区别由 `batch_row + block_table + block_offset` 转成相对这个 base 的 element offset。SFA-Offload 将传入的 `key/key_rope` 直接绑定为 `keyGm/kRopeGm`，再由 `DataCopyPA` 查表计算 offset；见 `sparse_flash_attention_for_offload_kernel_mla.h:440-472` 和 `sparse_flash_attention_for_offload_service_cube_mla.h:62-100`。
 
-### 1.1 page 粒度与 copy 粒度不是一回事
+### 1.3 Top-K shape、两个 singleton 维和 MTP
+
+原生 Lightning Indexer 的 shape 规则取决于 query layout：
+
+```text
+BSND query : [B,S,N_idx,128] -> topk [B,S,N2,K]
+TND  query : [T,N_idx,128]   -> topk [T,N2,K]
+T = 当前 batch 中所有请求的 query token 总数
+```
+
+其中 `N_idx` 是 32/64 个 Indexer query heads；`N2` 是 Indexer K 的 KV head 数，GLM/MLA 当前为 `1`；`K=2048`。TND 会把多个请求的 query token 压平到 `T=sum(query_len)`，请求边界由 `actual_seq_lengths_query:[B]` 保留。
+
+| 分支 | 普通 single-token Decode | singleton 维含义 | 开启 MTP 后的当前实现 |
+|---|---|---|---|
+| 原生 LI + 原生 SFA | `[B,1,2048]`，一般 TND ABI 为 `[T,1,2048]` | `1=N2`，即单 Indexer KV head；不是 sequence 维 | 原生 TND ABI 可以用增大的 `T` 表达多 query token，sequence 不会变成这个 `1` |
+| 旧 GS 集成路径 | LI `[B,1,2048]`，GS 前规范为 `[B,1,1,2048]` | GS 的 rank-4 语义是 `[B,S,H,K]`，当前 `S=1,H=1` | **集成路径只允许 single-query Decode**；通用 GS kernel 虽能描述 `S>1`，当前 Python/status/runtime 没有接通 MTP |
+| 当前 GLM LIDU | `[B,1,16384]` | LIDU 每 request 输出一条选择列表；这个 `1` 不是 seq，也不是 32/64 个 query heads | **DSA sparse offload 明确拒绝 MTP/multi-token row**，不会自动把该维改成 MTP token 数 |
+
+旧 GS 的通用算子接口还支持 TND `[T,H,K]` 或 BSND `[B,S,H,K]`，并限制 `S<=8`；但是本分支持久 status 固定为 `S=H=1`，且 `sfa_v1.py` 要求 `query_position_rows.shape[1]==1`。因此不能根据通用算子能力推导当前 vLLM 集成已经支持 MTP。当前 GLM 更严格：LIDU query ABI 本身是 `[B,N_idx,128]`，且 model runner 对 DSA sparse rows 要求 `attn_state=DecodeOnly`、每请求恰好一个 scheduled token。
+
+源码依据：原生 LI shape 见 `lightning_indexer_vllm_torch_adpt.h:43-53`；GS 的 `[B,S,H,K]` 解析和 `S<=8` 见旧分支 `gather_selection_kv_cache_tiling.cpp:48-53,176-244`；旧集成 single-query gate 见旧分支 `sfa_v1.py:1290-1306,1470-1477`；当前 GLM 的 single-token gate 见 `model_runner_v1.py:838-852` 和 `dsa_sparse.py:403-412`。
+
+### 1.4 page 粒度与 copy 粒度不是一回事
 
 | 动作 | 寻址/管理粒度 | 实际 payload 粒度 |
 |---|---|---|
@@ -134,11 +156,25 @@ ROPE_K : [num_blocks, 128,  64]
 
 因此答案不是简单的“按 block”或“按 token”：**地址翻译通过 128-token page/block；Top-K 回载是 token 粒度；卸载是完整 block 粒度。**
 
-### 1.2 SFA 前没有额外的 `[B,K,512]` HBM gather tensor
+### 1.5 SFA 前没有额外的 `[B,K,512]` HBM gather tensor
 
-- 原生分支：完整 KV 本来就在 HBM，SFA 根据 `sparse_indices + block_table` 直接从 paged cache 读。
-- 两个卸载分支：miss copy 先把 token row 原址写进 resident HBM cache；SFA 再根据 resident slot 读该 cache。
-- SFA kernel 会把需要的 KV tile 从 HBM GM 搬到 L1/片上缓冲参与矩阵计算，但 Python 层没有再构造一份独立的、连续的 Top-K KV tensor。
+原生 SFA 在一次 kernel 调用内根据 `sparse_indices + block_table` 完成 page translation 和 HBM GM→L1 的 gather-on-read；两个卸载分支先把 miss 原址写入 resident HBM，再由 SFA 按 resident slot 做同样的读取。Python/Host 都不会构造独立的连续 `[B,K,512]` KV tensor，也不存在额外 `BatchGet`。
+
+### 1.6 三个分支的依赖关键路径
+
+这里的“关键路径”指代码和 stream 依赖，不代表已经通过 profiler 证明哪一个算子耗时最长：
+
+```text
+原生：LI → SFA
+
+旧 GS：LI → GS（hit/miss、必要 copy、status 更新）→ SFA
+
+当前 GLM：LIDU（选择并更新 cache_slots）
+          → KSC（完成全部 miss DRAM→目标 HBM slot）
+          → SFA-Offload（读取完整 sparse slots + tail）
+```
+
+满 block dump 在当前层 attention 后发射，不是当前 SFA 的输入依赖；当前 GLM 的同流时序及尚未实现的 hit/miss 重叠详见 4.4。
 
 ---
 
@@ -149,6 +185,7 @@ ROPE_K : [num_blocks, 128,  64]
 ```text
 Lightning Indexer 选出 original token p
 → LI 直接把 p 作为 sparse_indices 交给原生 SFA
+→ 完整 MLA KV 始终保留在 HBM paged cache
 → SFA 内部拆分：
      logical_block = p // 128
      block_offset  = p % 128
@@ -159,26 +196,21 @@ Lightning Indexer 选出 original token p
 → SFA 在片上组织这些离散 KV，完成 attention
 ```
 
-KV 存储线：
-
-```text
-完整 MLA KV 保留在 HBM paged cache
-→ SFA 直接按 original token p 查表读取
-```
-
 ### 2.2 SFA 接口上的数据
 
 本表只列出本文寻址链涉及的关键数据，不是原生 SFA 的完整 ABI。
 
 | 数据 | dtype | Decode shape | 算子接口角色 | 值的含义 | 一句话工作（沿用下文示例） |
 |---|---|---|---|---|---|
-| `sparse_indices` | INT32 | `[B,1,2048]` | LI 输出 → SFA 输入 | original token position `p` | 告诉 SFA 本轮选中了哪个原始位置，例如一项为 `p=257` |
+| `sparse_indices` | INT32 | 普通 Decode `[B,1,2048]`；一般 TND `[T,1,2048]` | LI 输出 → SFA 输入 | original token position `p` | 告诉 SFA 每个 query token 选中了哪些原始位置，例如一项为 `p=257` |
 | MLA `block_table` | INT32 | `[B,M_mla]` | SFA 输入 | original logical block → HBM physical block | 将 `257//128=2` 转为 HBM block，例如 `block_table[b,2]=37` |
 | `key=value=kv_cache[0]` | BF16/FP16 | `[N_hbm,128,1,512]` | SFA 的 key/value 输入 | latent NOPE_K；key/value alias 同一 tensor | 保存并提供真实 latent KV，例如读取 HBM block `37` 的 offset `1`、共 512 个元素 |
 | `key_rope=kv_cache[1]` | BF16/FP16 | `[N_hbm,128,1,64]` | SFA 的 key_rope 输入 | ROPE_K | 提供同一个 token 的 RoPE K，例如读取 HBM block `37` 的 offset `1`、共 64 个元素 |
-| `query=ql_nope` | BF16/FP16 | `[B,H_local,512]` | SFA 的 query 输入 | 当前 Decode query | 与选中 token 的 latent KV 做 QK/加权计算，得到当前 Decode attention |
-| `query_rope=q_pe` | BF16/FP16 | `[B,H_local,64]` | SFA 的 query_rope 输入 | query RoPE 部分 | 与对应的 64 维 ROPE_K 一起形成位置相关的注意力分数 |
-| `attn_output` | BF16/FP16 | `[B,H_local,512]` | SFA 输出 | SFA 输出，与 query shape/dtype 一致 | 保存 SFA 对全部选中 KV 完成 softmax 和 V 聚合后的结果 |
+| `query=ql_nope` | BF16/FP16 | 普通 Decode `[B,H_local,512]`；一般 TND `[T,H_local,512]` | SFA 的 query 输入 | 当前 Decode query | 与选中 token 的 latent KV 做 QK/加权计算，得到当前 Decode attention |
+| `query_rope=q_pe` | BF16/FP16 | 普通 Decode `[B,H_local,64]`；一般 TND `[T,H_local,64]` | SFA 的 query_rope 输入 | query RoPE 部分 | 与对应的 64 维 ROPE_K 一起形成位置相关的注意力分数 |
+| `attn_output` | BF16/FP16 | 与 query 相同，普通 Decode `[B,H_local,512]` | SFA 输出 | SFA 输出，与 query shape/dtype 一致 | 保存 SFA 对全部选中 KV 完成 softmax 和 V 聚合后的结果 |
+
+这里 `[B,1,2048]` 中的 `1` 是 Indexer K 的单 KV head `N2=1`，不是 sequence length。普通 Decode 每请求一个 query token，所以 TND 的 `T=B`；MTP/多 token query 时，原生 ABI 把它们展平到更大的 `T`，请求边界由 `actual_seq_lengths_query:[B]` 描述。
 
 原生 SFA kernel 先做：
 
@@ -242,17 +274,12 @@ ROPE_K base +   606,336 bytes，连续取  64 个 BF16/FP16 元素
 - LI 输出直接进入原生 SFA：`vllm-glm/vllm_ascend/attention/sfa_v1.py:1190-1264`。
 - 原生 SFA 把 `sparse_indices` 乘 `sparse_block_size=1`：`vllm-glm/csrc/sparse_flash_attention/op_kernel/sparse_flash_attention_kernel_mla.h:900-918`。
 - `DataCopyPA` 的 `token -> block_table -> physical block -> offset`：`vllm-glm/csrc/sparse_flash_attention/op_kernel/sparse_flash_attention_service_cube_mla.h:61-100`。
+- SFA 将离散 KV 组织为 L1 计算 tile：同一文件 `:645-715`。
 - 输出按 `query.sizes()` 创建：`vllm-glm/csrc/sparse_flash_attention/sparse_flash_attention_torch_adpt.h:20-61`。
-
-### 2.5 SFA 内如何组织离散 KV
-
-原生路径是**按 token 粒度选择、在 SFA 内部查 MLA table**：LI 只交付 original position；SFA kernel 对这些离散 index 逐项做 page translation，将对应的单 token NOPE/ROPE row（实现中还会按 D 维切片）直接从 HBM GM 搬入 L1/片上连续计算 tile，再统一完成 QK、softmax 和 V。这里没有 Python/Host `BatchGet`，也不先生成一份独立的 `[B,2048,512]` 连续 HBM tensor；一次 SFA kernel 调用在内部完成 gather-on-read 和计算。
-
-源码落点：原生 SFA 组织 L1 tile 见 `sparse_flash_attention_service_cube_mla.h:645-715`。
 
 ---
 
-## 3.  `v0.19.1rc1-gs`：original token → GS hit/miss → resident slot → 原生 SFA
+## 3. `v0.19.1rc1-gs`：original token → GS hit/miss → resident slot → 原生 SFA
 
 ### 3.1 Decode 主流程、Offload 与取回
 
@@ -308,13 +335,17 @@ GS 判断 original token p 为 miss
 
 | 数据 | dtype | GS kernel shape | 算子接口角色 | 含义 | 一句话工作（沿用下文示例） |
 |---|---|---|---|---|---|
-| `selection_topk_indices` | INT32 | `[B,1,1,2048]` | LI 输出 → GS 输入 | LI 选出的 original token positions | 给出本轮要找的原始 token，例如 Top-K 项的值是 `p=257` |
-| `resident_slot_token_status` | INT32 | 每层 view 约为 `[pool,1,1,K+1]` | GS 输入/输出（原地更新） | `status[slot]=original token position`；最后一项保存有效长度 | 将 resident slot 转回其中保存的原始 token，例如 `status[33]=257`，据此判断 hit/miss |
+| `selection_topk_indices` | INT32 | 当前集成 `[B,1,1,2048]`；通用 GS 为 BSND `[B,S,H,K]` 或 TND `[T,H,K]` | LI 输出 → GS 输入 | LI 选出的 original token positions | 给出每个 query token 本轮要找的原始 token，例如一项为 `p=257` |
+| `resident_slot_token_status` | INT32 | 总存储 `[L,pool,1,1,K+1]`；每层 view `[pool,1,1,K+1]` | GS 输入/输出（原地更新） | `status[pool_row,0,0,s]=p`；最后一项保存有效 resident 长度 | 将 resident slot 转回其中保存的原始 token，例如 `status[r,0,0,33]=257`，据此判断 hit/miss |
 | `full_block_table` | INT32 | `[B,M_dram]` | GS 输入 | original logical block → DRAM physical block | 将原始逻辑块转换为 DRAM 物理块，例如 `full_block_table[b,2]=91` |
 | `selection_block_table` | INT32 | `[B,M_hbm]` | GS 输入；随后也是 SFA 输入 | resident logical block → HBM physical block | 将 resident 逻辑块转换为 HBM 物理块，例如 `selection_block_table[b,0]=7` |
 | DRAM NOPE/ROPE | BF16/FP16 | `[N_dram,128,512/64]` | GS 的 full KV 输入/source | 完整历史的 swapped-memory arena | 保存卸载后的真实 KV，例如 token `257` 位于 DRAM block `91` 的 offset `1` |
 | resident HBM NOPE/ROPE | BF16/FP16 | `[N_hbm,128,512/64]` | GS 输入/输出（原地写入）；随后作为 SFA 输入 | SFA 实际读取的 resident cache | 保存回载后供 SFA 读取的 KV，例如 token `257` 被放到 HBM block `7` 的 offset `33` |
 | `attention_indices_out` | INT32 | `[B,W]` | GS 输出 → SFA 输入 | sparse row 为 resident slots；SFA 前变为 `[B,1,W]` | 将本轮 Top-K 改写为 SFA 可读的 resident slot，例如把原始 token `257` 改写成 slot `33` |
+
+当前 `[B,1,1,2048]` 按 GS 通用 rank-4 ABI 应读作 `[B,S,H,K]`，即 `S=1` 个 query position、`H=1` 个 KV head。上游原生 LI 的 TND 输出本来是 `[B,H,K]=[B,1,2048]`，wrapper 再插入一个 singleton 变成 rank-4；因为当前 `S` 和 `H` 都是 `1`，两个轴即使在 wrapper 注释中次序写法不同，也不影响地址。MTP 时 `S>1` 后二者不能再互换，必须显式恢复 `[B,S,H,K]` 和对应的 status/block-table row；本分支集成代码没有完成这项工作，并以 single-query gate 拒绝该路径。
+
+`resident_slot_token_status` 也不是 KV payload。它由 `DSAResidentTokenPool` 在初始化时一次分配，按 `[layer,pool_row,S=1,H=1,K+1]` 跨 decode step 保留；GS 根据 `req_pool_entries[b]=pool_row` 选择当前请求的状态行并原址修改，KSC/SFA 类算子不会自动发现这张表。请求结束或 preempt 时，Python pool 会把该请求所有 layer 的状态行清为 `-1`。源码见旧分支 `dsa_resident_pool.py:30-76,82-107,133-188` 和 `dsa_ascend_ops_backend.py:267-280,370-400`。
 
 ### 3.3 miss 的精确 source/destination 地址
 
@@ -401,6 +432,8 @@ status[33] = 257
 
 ## 4. 当前 `-gs-glm`：LIDU miss indication → KSC token copy → SFA-Offload
 
+> 如需从当前 token 的 Indexer/MLA KV 生成、vLLM block ID 与 H2D metadata，一直跟到 LIDU/KSC/SFA-Offload 的全 shape 链路，见[当前 GLM 分支 KV 完整数据流](./当前GLM分支KV完整数据流.md)。
+
 ### 4.1 Decode 主流程、Offload 与取回
 
 Decode 主流程：
@@ -426,7 +459,8 @@ LIDU 在完整 Indexer K 上选出 original token p
 
 → KSC 只处理 [0, miss_count) 的 miss pairs
 → hit 不经过 KSC 搬运
-→ miss KV 已写入该写入哪个resident slot 已被LIDU 计算好
+→ LIDU 只决定 miss 应写入哪个 resident slot
+→ KSC 完成后，miss KV 才真正出现在该 resident HBM slot
 
 → SFA-Offload 接收 topk_slots
 → 前 2048 个 slot 用于 sparse attention
@@ -472,6 +506,11 @@ Full-block dump 每次接收的已经是 physical source/destination block IDs�
 
 | 数据 | dtype | shape | 算子接口角色 | 消费者与含义 | 一句话工作（沿用下文示例） |
 |---|---|---|---|---|---|
+| LIDU `query` | BF16/FP16 | `[B,N_idx,128]`，`N_idx=32/64` | LIDU 输入 | 每个 request row 的 Indexer query heads | 对该请求的完整 Indexer K 历史打分；`N_idx` 不会原样出现在 Top-K 输出 shape 中 |
+| LIDU `key` | BF16/FP16 | `[N_indexer,128,1,128]` | LIDU 输入 | 完整 HBM Indexer K cache | 借助 Indexer block table 提供所有 candidate K；这里的 `1` 是单 KV head |
+| LIDU `weights` | BF16/FP16 | `[B,N_idx]` | LIDU 输入 | Indexer head 聚合权重 | 将 32/64 个 head 的 score 聚合为每个 request 一条 Top-K 列表 |
+| `req_pool_entries` | INT32 | `[B]` | LIDU 输入 | 当前 batch row → 持久 resident pool row | 例如 `req_pool_entries[b]=r`，让 LIDU 访问第 `r` 行 `cache_slots` |
+| `cache_slots` | INT32 | 总存储 `[L,pool,W]`；LIDU 每层输入 `[pool,W]` | LIDU 输入/输出（原址更新） | 前 `W-1` 列为 original position `p` → resident slot `s`；末列为 budget metadata | 用 `cache_slots[r,257]` 判断 `p=257` 是否 hit，并在 miss 淘汰时原址更新映射 |
 | `topk_index` | INT32 | `[B,1,16384]` | LIDU 输出 → KSC 输入 | KSC source token IDs；值为 original positions | 告诉 KSC 要从 DRAM 取哪个原始 token，例如 miss 项为 `p=257` |
 | `topk_slots` | INT32 | `[B,1,16384]` | LIDU 输出 → KSC 输入；随后作为 SFA-Offload 输入 | KSC destination slots；随后也是 SFA-Offload sparse indices | 指定 KSC 写入和 SFA 读取的 resident slot，例如 `s=33` |
 | `miss_count` | INT32 | `[B]` | LIDU 输出 → KSC 输入 | 每行有效 miss pair 前缀长度 | 限定需要真正搬运的前缀；例如值为 `5` 时 KSC 只处理前 5 对 `(p,s)` |
@@ -485,7 +524,111 @@ Full-block dump 每次接收的已经是 physical source/destination block IDs�
 
 `topk_index/topk_slots` 的 16384 容量有两个用途：steady sparse 保存 Top-K 与 miss pairs；ENTER/first-fill 可以一次构造更多 resident copy pairs。SFA-Offload 并不会对 16384 项全部做稀疏 attention：有合法 tail 时固定读取 2048 个 sparse slots，再读取 `tail_info` 指定的连续 tail。
 
-### 4.3 KSC 的精确地址公式
+`[B,1,16384]` 中间的 `1` 是 LIDU 固定输出 contract 中的单选择列表轴，不是 sequence length，也不是 `N_idx=32/64`。当前 LIDU 没有 `S` 轴：其 query 是 `[B,N_idx,128]`，一行只代表一个请求的一个 Decode query。开启 MTP 后，vLLM 会进入 `SpecDecoding`/multi-token layout，而当前 DSA sparse path 在进入 LIDU 前就报错，不会把该 `1` 扩成 speculative token 数。
+
+### 4.3 `cache_slots` 如何从 Top-K 的 `p` 判断 resident hit/miss
+
+`cache_slots` 不是 LIDU 内部的私有状态，而是 `DSAResidentTokenPool` 分配并跨 Decode step 保留的 NPU tensor；LIDU 是正常 Decode 中唯一修改 token→slot 映射的算子：
+
+```text
+_cache_slots : INT32 [num_layers, max_reqs+1, W]
+
+执行 Layer L 时：
+cache_slots = _cache_slots[L]       # [pool,W]，作为 mutable 参数传给 LIDU
+
+cache_slots[r,p]     = original position p → resident slot s
+cache_slots[r,W-1]   = 当前请求、当前层的 budget metadata
+```
+
+`b` 只是当前 batch 的临时请求行；`req_pool_entries[b]=r` 将它映射到该请求稳定的 pool row，`cache_slots` 用 `r`，而本轮 HBM/DRAM block table 仍用 `b`。
+
+对于 Top-K 选出的一个 original position `p`，LIDU 直接查询：
+
+```text
+r = req_pool_entries[b]
+LIDU 查询 cache_slots[r,p]
+│
+├─ cache_slots[r,p] = s
+│    → hit，继续使用 resident slot s，不搬 KV
+│
+└─ cache_slots[r,p] = -1
+     → miss
+     → 找到一个不属于本轮 Top-K 的 old_p
+     → 复用 old_p 的 resident slot s
+     → 原址更新：
+          cache_slots[r,old_p] = -1
+          cache_slots[r,p]     = s
+     → 输出 miss pair (p,s)
+```
+
+例如 `req_pool_entries[2]=5`、Top-K 选中 `p=257`：
+
+```text
+cache_slots[5,257] = 33 → hit，LIDU 输出 topk_slots=33
+cache_slots[5,257] = -1 → miss，LIDU 为它选择 slot s 并输出 (257,s)
+```
+
+LIDU 会把 miss 整理到输出前缀，并给出 `miss_count`。后续流程是：
+
+```text
+LIDU 输出 (p,s)
+→ KSC 用 p 查 DRAM block table，从 DRAM 读取该 token KV
+→ KSC 用 s 查 HBM block table，将 KV 写入最终 resident slot s
+→ SFA-Offload 使用 s 读取
+```
+
+因此不是 KSC 搬完以后再通知 LIDU 更新；当前顺序是 **LIDU 先决定并写入映射，KSC 再填充真实 KV，SFA 最后使用**。同一 NPU stream 的顺序保证映射与 payload 一致。
+
+`cache_slots` 中的 miss 只表示 `p` 不在 sparse resident set；仍在 HBM 的 dense tail 由 `tail_info` 旁路，不查询这张表。完整 block 的 HBM→DRAM dump 也不修改 `cache_slots`，因为 dump/block table 管历史 KV 在 DRAM 的位置，而 `cache_slots` 只管 token→resident slot。
+
+正常 Decode 中只有 LIDU 原址更新 `cache_slots`；Python resident pool 负责初始化、request release/preempt 时清理。KSC 和 SFA-Offload 都不接收这张表。若未来把 KSC 改成异步执行，则需要额外的 `pending→ready` 状态或 device event。
+
+源码依据：分配、清理和逐层 view 见 `dsa_resident_pool.py:25-193`、`dsa_sparse.py:502-522`；`b→r` 与查表见 `lightning_indexer_decode_update_kernel.h:197-253`；miss 淘汰及原址更新见 `lightning_indexer_decode_update_service_vector.h:591-650`；KSC 参数中没有 `cache_slots`，见 `dsa_ascend_ops_backend.py:176-204`。
+
+### 4.4 当前 GLM 是否实现 hit 计算与 miss 传输重叠
+
+**结论：没有。** 当前实现是三个独立算子在同一个 current NPU stream 上有序执行：
+
+```text
+LIDU 完成
+  │ 输出 topk_slots + miss prefix，并原址更新 cache_slots
+  ▼
+KSC 完成全部 [0,miss_count) 的 DRAM→最终 resident HBM slot copy
+  ▼
+SFA-Offload 启动，一次性读取前 2048 个 sparse slots 和 dense tail
+```
+
+判断依据不是 Python 调用“看起来连续”，而是接口本身已经排除了 SFA 内搬 miss 的可能：
+
+1. `execute_decode_selection_pipeline()` 在返回 selection 前依次调用 LIDU、KSC；之后 `sfa_v1.py` 才调用 SFA-Offload。
+2. SFA-Offload ABI 只有 resident `key/key_rope`、`sparse_indices=topk_slots`、`tail_info` 和 HBM `block_table`；没有 DRAM arena、DRAM block table、`topk_index` 或 `miss_count`，所以它既不知道谁 miss，也不能从 DRAM 取回 miss。
+3. KSC kernel 自己读取 miss prefix，对每个 `(p,s)` 完成 DRAM→UB→HBM；SFA 只在之后从 HBM 读。
+4. 当前代码明确说明 cache write/dump/后续 LIDU-KSC 依赖同一 stream ordering；没有为 KSC 和 SFA 建立两个 stream/event 的并行协议。
+
+SFA-Offload kernel 内部确实会流水搬运 HBM KV tile 到 L1 并进行 cube/vector 计算，也存在内部 stage/split-K 计算结构；那是 **SFA 自身的 HBM-read/compute pipeline**，不是“hit SFA 与 KSC miss DRAM→HBM”的跨算子重叠。
+
+当前关键路径因此是：
+
+```text
+LIDU latency + KSC miss materialization latency + SFA-Offload latency
+```
+
+hit 不产生 KSC payload copy；但只要该 row 有 miss，单次 SFA 仍要等 KSC 的全部 miss 完成。满 block dump 在 attention 后发射，不阻塞当前 SFA 的输入准备。
+
+你提出的优化可以研究，但属于新设计而非现状。优先方案不是额外 staging buffer，而是：
+
+```text
+copy stream：KSC 异步直接写 LIDU 已分配的最终 resident slots
+compute stream：先对 hit slots 计算局部 attention 统计量
+event wait 后：计算 miss slots
+最后用 online-softmax 合并两部分的 max / exp-sum / weighted-value
+```
+
+不能把两次普通 SFA 的最终输出直接相加，因为 hit/miss 必须共享同一个 softmax 归一化。现有 SFA ABI 只返回最终 output，没有暴露可合并的 `max/sum/acc`，所以需要新增 split/merge 算子能力。若使用独立 staging buffer，还要让 SFA 同时寻址 resident cache 与 buffer，并为 `cache_slots` 增加 pending→ready 提交协议；计算后再搬入最终 slot 会额外增加一次 HBM→HBM copy，通常不如 KSC 直接异步写最终 slot。
+
+源码依据：调用顺序见 `vllm-glm/vllm_ascend/dsa_sparse/dsa_sparse.py:480-565` 和 `vllm-glm/vllm_ascend/attention/sfa_v1.py:1119-1153,1226-1245`；SFA-Offload 完整 ABI 见 `sparse_flash_attention_for_offload_torch_adpt.h:19-106`；KSC copy 见 `kvcache_scatter_copy_kernel.h:52-78,91-140`；单 stream 约束见 `dsa_sparse.py:617-631`。
+
+### 4.5 KSC 的精确地址公式
 
 这里有两张名字容易混淆的 HBM table view：
 
@@ -529,7 +672,7 @@ dst_rope = (dst_phys_block * 128 + dst_block_offset) * 64
 
 KSC 依次把 DRAM NOPE/ROPE 读到本核 local buffer，再写入 resident HBM NOPE/ROPE。
 
-### 4.4 具体例子：`token_id=257` 是 miss
+### 4.6 具体例子：`token_id=257` 是 miss
 
 使用与旧 GS 完全相同的示例表值：
 
@@ -608,7 +751,7 @@ topk_index 257
   -> HBM block 7 / offset 33
 ```
 
-### 4.5 DENSE 与 tail 特殊路径
+### 4.7 DENSE 与 tail 特殊路径
 
 #### DENSE row
 
@@ -625,7 +768,7 @@ real_tail_slot = tail_slot_start + tail_offset
 
 再用同一套 `slot // 128`、`slot % 128`、HBM block table 公式读取连续 resident tail。
 
-### 4.6 代码证据
+### 4.8 代码证据
 
 - LIDU → KSC → `DSAOffloadSelectionOutput`：`vllm-glm/vllm_ascend/dsa_sparse/dsa_sparse.py:480-565`。
 - LIDU 四个输出的 adapter shape/dtype：`vllm-glm/csrc/lightning_indexer_decode_update/lightning_indexer_decode_update_torch_adpt.h:12-134`。
@@ -683,10 +826,3 @@ topk_index 257 + topk_slots 33 + miss_count
     -> KSC: DRAM block_table -> DRAM KV -> resident HBM slot 33
     -> SFA-Offload 使用 topk_slots 33 -> HBM block_table -> SFA
 ```
-
-## 6. 最终需要记住的四个边界
-
-1. Top-K 返回的不是 KV tensor 地址，而是请求内 token position；physical block 必须在 GS/KSC/SFA 中通过 block table 查出。
-2. 原生 SFA 收到 original position；两个卸载分支的稀疏 SFA 收到 resident slot。
-3. 卸载保存完整 128-token block；Top-K miss 回载只复制被选中的单 token row。
-4. GS/KSC 把 miss KV 写回 resident HBM 后，SFA 仍会用 resident slot 和 HBM block table 再做一次地址翻译；没有额外的 Python Top-K KV gather tensor。
